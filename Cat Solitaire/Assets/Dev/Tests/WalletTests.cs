@@ -103,6 +103,21 @@ public class WalletTests
         Assert.AreEqual(7, restoredWallet.Get(_stars));
     }
 
+    [Test]
+    public void UnconfiguredPrice_CountsAsFree()
+    {
+        Assert.IsTrue(_wallet.CanAfford(new Price()));
+        Assert.IsTrue(_wallet.TrySpend(new Price()));
+        Assert.IsTrue(_wallet.CanAfford(null));
+    }
+
+    [Test]
+    public void UnconfiguredRewards_GrantNothingAndDoNotThrow()
+    {
+        Assert.DoesNotThrow(() => _wallet.Grant(null));
+        Assert.AreEqual(0, _wallet.Get(_coins));
+    }
+
     // ---- helpers ----
 
     static CurrencyDef NewCurrency(string id)

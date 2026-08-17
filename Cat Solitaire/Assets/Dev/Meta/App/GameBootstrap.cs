@@ -36,6 +36,14 @@ public class GameBootstrap : MonoBehaviour
         if (_profile != null) SaveService.Save(_profile);
     }
 
+    public void RecordLevelCompleted()
+    {
+        if (_profile == null) return;
+
+        _profile.LevelsCompleted++;
+        Save();
+    }
+
     void OnApplicationPause(bool paused)
     {
         if (paused) Save();   // on mobile this is the reliable one, not OnApplicationQuit

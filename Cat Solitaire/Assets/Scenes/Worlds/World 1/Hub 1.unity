@@ -778,7 +778,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 832d5272d1d3a2d44b1b720ef56f34ef, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Meta::GameBootstrap
-  _startingChapter: {fileID: 0}
+  _startingChapter: {fileID: 11400000, guid: f9aa9286c9a5b7c4b92b5a83c9325ff9, type: 2}
 --- !u!1001 &3592801001031298367
 PrefabInstance:
   m_ObjectHideFlags: 0

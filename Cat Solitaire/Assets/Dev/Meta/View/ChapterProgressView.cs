@@ -2,17 +2,13 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// The "SCENE 2 — 4/8" widget: how many hub objects are unlocked
-/// out of how many the chapter needs.
-/// </summary>
 public class ChapterProgressView : MonoBehaviour
 {
     [SerializeField] TMP_Text _chapterNameLabel;
     [SerializeField] TMP_Text _progressLabel;
 
     [Header("Optional")]
-    [SerializeField] Image _progressFill;
+    [SerializeField] Slider _progressFill;
     [SerializeField] GameObject _completeBadge;
 
     ProgressionService _progression;
@@ -41,7 +37,7 @@ public class ChapterProgressView : MonoBehaviour
 
         if (_chapterNameLabel != null) _chapterNameLabel.text = chapter.DisplayName;
         if (_progressLabel != null) _progressLabel.text = $"{unlocked}/{required}";
-        if (_progressFill != null) _progressFill.fillAmount = Mathf.Clamp01((float)unlocked / required);
+        if (_progressFill != null) _progressFill.value = Mathf.Clamp01((float)unlocked / required);
         if (_completeBadge != null) _completeBadge.SetActive(_progression.IsChapterComplete);
     }
 }

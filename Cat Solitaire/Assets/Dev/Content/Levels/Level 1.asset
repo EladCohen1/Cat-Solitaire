@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6450979cb89af58409c8b657b07e932a, type: 3}
+  m_Name: Level 1
+  m_EditorClassIdentifier: Core::LevelDef
+  Id: 1
+  EntryCost:
+    Costs:
+    - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+      Amount: 250
+  WinRewards:
+  - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+    Amount: 220
+  - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+    Amount: 1
+  LoseRewards: []
+  RuleData: {fileID: 0}

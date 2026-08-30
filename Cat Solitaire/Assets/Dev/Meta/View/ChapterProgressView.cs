@@ -10,6 +10,8 @@ public class ChapterProgressView : MonoBehaviour
     [Header("Optional")]
     [SerializeField] Slider _progressFill;
     [SerializeField] GameObject _completeBadge;
+    [Tooltip("The chest at the end of the bar. Hook its OnClick to ClaimReward.")]
+    [SerializeField] Button _claimButton;
 
     ProgressionService _progression;
 
@@ -17,12 +19,22 @@ public class ChapterProgressView : MonoBehaviour
     {
         _progression = GameBootstrap.Instance.Progression;
         _progression.ObjectUnlocked += OnObjectUnlocked;
+        _progression.ChapterRewardClaimed += Refresh;
         Refresh();
     }
 
     void OnDestroy()
     {
-        if (_progression != null) _progression.ObjectUnlocked -= OnObjectUnlocked;
+        if (_progression == null) return;
+
+        _progression.ObjectUnlocked -= OnObjectUnlocked;
+        _progression.ChapterRewardClaimed -= Refresh;
+    }
+
+    /// <summary>Hook the chest button's OnClick here. Pays out once, then goes quiet.</summary>
+    public void ClaimReward()
+    {
+        if (_progression != null) _progression.TryClaimChapterReward();
     }
 
     void OnObjectUnlocked(HubObjectDef _) => Refresh();
@@ -39,5 +51,8 @@ public class ChapterProgressView : MonoBehaviour
         if (_progressLabel != null) _progressLabel.text = $"{unlocked}/{required}";
         if (_progressFill != null) _progressFill.value = Mathf.Clamp01((float)unlocked / required);
         if (_completeBadge != null) _completeBadge.SetActive(_progression.IsChapterComplete);
+
+        // The chest stays on the bar once claimed, as the thing the goal was for.
+        if (_claimButton != null) _claimButton.interactable = _progression.CanClaimChapterReward;
     }
 }

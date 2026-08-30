@@ -11,4 +11,7 @@ public class HubChapterDef : ScriptableObject
     public string DisplayName;
     public HubObjectDef[] Objects;
     public int RequiredUnlocks;
+
+    [Tooltip("The chest at the end of the progress bar. Paid out once, when the player claims it.")]
+    public CurrencyAmount[] CompletionRewards;
 }

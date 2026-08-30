@@ -146,6 +146,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4949293005234444151}
+  - component: {fileID: 8515252441570425252}
   m_Layer: 5
   m_Name: Bar
   m_TagString: Untagged
@@ -174,6 +175,25 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &8515252441570425252
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1331194463851387296}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5692b7df2fd413ba2fa518fe56f8eb1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Meta::HubObjectBarView
+  _nameLabel: {fileID: 5770075848511280413}
+  _costLabel: {fileID: 7189013643898194691}
+  _upgradeButton: {fileID: 7881118708801697661}
+  _icon: {fileID: 117321919733187763}
+  _costCurrencyIcon: {fileID: 7789374786449946490}
+  _costGroup: {fileID: 0}
+  _unlockedBadge: {fileID: 0}
 --- !u!1 &2445843134826108808
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,0 +1,2497 @@
+From 2c2e2fe79ba1f7d31eba31d8f3ac26e6bd265cd8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 30 Aug 2026 07:33:02 +0000
+Subject: [PATCH 1/4] Add the solitaire gameplay layer
+
+The Solitaire assembly was an empty asmdef, so GameFlow charged the entry
+cost, found no ILevelRunner in the level scene, refunded and logged an
+error. This fills it in with a playable tri-peaks round.
+
+- Card/CardDeck: the deck and the matching rule (one rank apart, wrapping
+  between Ace and King), with a seeded shuffle so a level deals the same
+  board every attempt.
+- SolitaireBoardLayout: slot positions and coverage in card widths, not
+  pixels. Empty means the classic three peaks over ten free cards.
+- SolitaireGame: the rules, the combo scoring and the win/lose decision,
+  with no Unity types in the way, so it is testable outside play mode.
+- SolitaireLevelRunner: implements ILevelRunner, builds the board from the
+  level's rule asset and reports exactly one LevelResult. It never touches
+  the wallet - GameFlow still owns the money.
+- Placeholder card art built from UI primitives, to be replaced by prefabs
+  once the real art lands.
+- Assets/Scenes/Solitaire.unity: the scene GameFlow loads by name, with its
+  own EventSystem because the hub's is switched off while a level runs.
+- 13 edit-mode tests covering the deal, blocking, matching, scoring, the
+  win and lose transitions and the seeded deal.
+
+Level 1 keeps its authored economy and now points at the new rules asset,
+so playing it deals a classic tri-peaks board.
+---
+ .../Assets/Dev/Content/Levels/Level 1.asset   |   2 +-
+ .../Assets/Dev/Content/Solitaire.meta         |   8 +
+ .../Content/Solitaire/Classic Tri-Peaks.asset |  16 +
+ .../Solitaire/Classic Tri-Peaks.asset.meta    |   8 +
+ .../Dev/Content/Solitaire/Level 1 Rules.asset |  17 +
+ .../Solitaire/Level 1 Rules.asset.meta        |   8 +
+ Cat Solitaire/Assets/Dev/Solitaire/Data.meta  |   8 +
+ .../Solitaire/Data/SolitaireBoardLayout.cs    |  83 +++++
+ .../Data/SolitaireBoardLayout.cs.meta         |  11 +
+ .../Dev/Solitaire/Data/SolitaireLevelDef.cs   |  17 +
+ .../Solitaire/Data/SolitaireLevelDef.cs.meta  |  11 +
+ Cat Solitaire/Assets/Dev/Solitaire/Game.meta  |   8 +
+ .../Dev/Solitaire/Game/SolitaireGame.cs       | 174 ++++++++++
+ .../Dev/Solitaire/Game/SolitaireGame.cs.meta  |  11 +
+ Cat Solitaire/Assets/Dev/Solitaire/Model.meta |   8 +
+ .../Assets/Dev/Solitaire/Model/Card.cs        |  71 ++++
+ .../Assets/Dev/Solitaire/Model/Card.cs.meta   |  11 +
+ .../Assets/Dev/Solitaire/Model/CardDeck.cs    |  41 +++
+ .../Dev/Solitaire/Model/CardDeck.cs.meta      |  11 +
+ .../Assets/Dev/Solitaire/Solitaire.asmdef     |   4 +-
+ Cat Solitaire/Assets/Dev/Solitaire/View.meta  |   8 +
+ .../Dev/Solitaire/View/SolitaireCardView.cs   |  84 +++++
+ .../Solitaire/View/SolitaireCardView.cs.meta  |  11 +
+ .../Solitaire/View/SolitaireLevelRunner.cs    | 269 +++++++++++++++
+ .../View/SolitaireLevelRunner.cs.meta         |  11 +
+ .../Assets/Dev/Solitaire/View/SolitaireUi.cs  |  79 +++++
+ .../Dev/Solitaire/View/SolitaireUi.cs.meta    |  11 +
+ .../Assets/Dev/Tests/SolitaireGameTests.cs    | 243 +++++++++++++
+ .../Dev/Tests/SolitaireGameTests.cs.meta      |  11 +
+ Cat Solitaire/Assets/Dev/Tests/Tests.asmdef   |   1 +
+ Cat Solitaire/Assets/Scenes/Solitaire.unity   | 323 ++++++++++++++++++
+ .../Assets/Scenes/Solitaire.unity.meta        |   7 +
+ .../ProjectSettings/EditorBuildSettings.asset |   3 +
+ 33 files changed, 1587 insertions(+), 2 deletions(-)
+ create mode 100644 Cat Solitaire/Assets/Dev/Content/Solitaire.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset
+ create mode 100644 Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset
+ create mode 100644 Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Data.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Game.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Model.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Scenes/Solitaire.unity
+ create mode 100644 Cat Solitaire/Assets/Scenes/Solitaire.unity.meta
+
+diff --git a/Cat Solitaire/Assets/Dev/Content/Levels/Level 1.asset b/Cat Solitaire/Assets/Dev/Content/Levels/Level 1.asset
+index 59685a1..bf87c1f 100644
+--- a/Cat Solitaire/Assets/Dev/Content/Levels/Level 1.asset	
++++ b/Cat Solitaire/Assets/Dev/Content/Levels/Level 1.asset	
+@@ -23,4 +23,4 @@ MonoBehaviour:
+   - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+     Amount: 1
+   LoseRewards: []
+-  RuleData: {fileID: 0}
++  RuleData: {fileID: 11400000, guid: 0a160da613d9492b98ba72e1eb109337, type: 2}
+diff --git a/Cat Solitaire/Assets/Dev/Content/Solitaire.meta b/Cat Solitaire/Assets/Dev/Content/Solitaire.meta
+new file mode 100644
+index 0000000..c957dfb
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Content/Solitaire.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 4d380108e19145abbd0828f279bef7b7
++folderAsset: yes
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset b/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset
+new file mode 100644
+index 0000000..830156e
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset	
+@@ -0,0 +1,16 @@
++%YAML 1.1
++%TAG !u! tag:unity3d.com,2011:
++--- !u!114 &11400000
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 0}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 477d04bfba3b4b26aed4d269ae40372f, type: 3}
++  m_Name: Classic Tri-Peaks
++  m_EditorClassIdentifier: Solitaire::SolitaireBoardLayout
++  Slots: []
++  StockCount: 23
+diff --git a/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset.meta b/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset.meta
+new file mode 100644
+index 0000000..cf27345
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Content/Solitaire/Classic Tri-Peaks.asset.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 9908bd0f35b84c538564853ad94ab3c6
++NativeFormatImporter:
++  externalObjects: {}
++  mainObjectFileID: 11400000
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset b/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset
+new file mode 100644
+index 0000000..fd5a00f
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset	
+@@ -0,0 +1,17 @@
++%YAML 1.1
++%TAG !u! tag:unity3d.com,2011:
++--- !u!114 &11400000
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 0}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 12a428fbbf334cad9ce4c2cd3933efeb, type: 3}
++  m_Name: Level 1 Rules
++  m_EditorClassIdentifier: Solitaire::SolitaireLevelDef
++  Layout: {fileID: 11400000, guid: 9908bd0f35b84c538564853ad94ab3c6, type: 2}
++  Seed: 0
++  TargetScore: 0
+diff --git a/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset.meta b/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset.meta
+new file mode 100644
+index 0000000..d07f5ca
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Content/Solitaire/Level 1 Rules.asset.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 0a160da613d9492b98ba72e1eb109337
++NativeFormatImporter:
++  externalObjects: {}
++  mainObjectFileID: 11400000
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Data.meta b/Cat Solitaire/Assets/Dev/Solitaire/Data.meta
+new file mode 100644
+index 0000000..6f4dfe8
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Data.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 8aa4215717a74d94a061a70029028d1c
++folderAsset: yes
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs
+new file mode 100644
+index 0000000..dcef8c6
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs	
+@@ -0,0 +1,83 @@
++using System;
++using System.Collections.Generic;
++using UnityEngine;
++
++/// <summary>
++/// The shape of one board: where every tableau slot sits and which slots lie on
++/// top of it. Positions are measured in card widths and heights, never pixels, so
++/// the view is free to scale the whole board to whatever screen it lands on.
++///
++/// Leave <see cref="Slots"/> empty to get the classic three-peak board. Use the
++/// context menu to bake that arrangement into the asset when you want to hand-edit it.
++/// </summary>
++[CreateAssetMenu(menuName = "Cat/Solitaire Board Layout")]
++public class SolitaireBoardLayout : ScriptableObject
++{
++    [Serializable]
++    public class Slot
++    {
++        [Tooltip("In card widths (x) and card heights (y). Larger y is nearer the top of the screen.")]
++        public Vector2 Position;
++
++        [Tooltip("Slots overlapping this one. Every one of them must be cleared before this card can be played.")]
++        public int[] Blockers = Array.Empty<int>();
++    }
++
++    public Slot[] Slots;
++
++    [Tooltip("How many of the cards left over after the deal go into the draw pile. The rest sit out the round.")]
++    public int StockCount = 23;
++
++    /// <summary>The authored slots, or the classic three peaks when nothing is authored.</summary>
++    public IReadOnlyList<Slot> EffectiveSlots =>
++        Slots != null && Slots.Length > 0 ? Slots : BuildClassicTriPeaks();
++
++    /// <summary>
++    /// The standard 28-card board: three peaks of 1 + 2 + 3 cards sitting on a
++    /// shared row of ten. Every card is overlapped by the two cards half a width
++    /// to either side of it on the row below, and those two are its blockers.
++    /// </summary>
++    public static Slot[] BuildClassicTriPeaks()
++    {
++        float[][] rows =
++        {
++            new[] { 1.5f, 4.5f, 7.5f },
++            new[] { 1f, 2f, 4f, 5f, 7f, 8f },
++            new[] { 0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f, 6.5f, 7.5f, 8.5f },
++            new[] { 0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f },
++        };
++
++        const float rowSpacing = 0.5f;   // rows overlap by half a card
++        const float overlapReach = 0.6f; // a card is covered by anything within half a width
++
++        var slots = new List<Slot>();
++        var rowStart = new int[rows.Length];
++
++        for (var row = 0; row < rows.Length; row++)
++        {
++            rowStart[row] = slots.Count;
++            var y = (rows.Length - 1 - row) * rowSpacing;
++
++            foreach (var x in rows[row])
++                slots.Add(new Slot { Position = new Vector2(x, y) });
++        }
++
++        // The bottom row is covered by nothing, which is why it starts out playable.
++        for (var row = 0; row < rows.Length - 1; row++)
++            for (var i = 0; i < rows[row].Length; i++)
++            {
++                var blockers = new List<int>();
++
++                for (var j = 0; j < rows[row + 1].Length; j++)
++                    if (Mathf.Abs(rows[row + 1][j] - rows[row][i]) < overlapReach)
++                        blockers.Add(rowStart[row + 1] + j);
++
++                slots[rowStart[row] + i].Blockers = blockers.ToArray();
++            }
++
++        return slots.ToArray();
++    }
++
++    [ContextMenu("Bake Classic Tri-Peaks")]
++    void BakeClassicTriPeaks() => Slots = BuildClassicTriPeaks();
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs.meta
+new file mode 100644
+index 0000000..ffd0e80
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireBoardLayout.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 477d04bfba3b4b26aed4d269ae40372f
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs
+new file mode 100644
+index 0000000..28f34b5
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs	
+@@ -0,0 +1,17 @@
++using UnityEngine;
++
++/// <summary>
++/// The rules half of a level, dropped into <see cref="LevelDef.RuleData"/>. The
++/// meta game never reads any of this — it only knows a level was won or lost.
++/// </summary>
++[CreateAssetMenu(menuName = "Cat/Solitaire Rules")]
++public class SolitaireLevelDef : ScriptableObject
++{
++    public SolitaireBoardLayout Layout;
++
++    [Tooltip("0 deals a fresh board every attempt. Any other value always deals the same board.")]
++    public int Seed;
++
++    [Tooltip("Score the player must also reach to win. 0 means clearing the board is enough on its own.")]
++    public int TargetScore;
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs.meta
+new file mode 100644
+index 0000000..49bfa65
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Data/SolitaireLevelDef.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 12a428fbbf334cad9ce4c2cd3933efeb
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Game.meta b/Cat Solitaire/Assets/Dev/Solitaire/Game.meta
+new file mode 100644
+index 0000000..d601422
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Game.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 08ada43b91264091975addc343db31a7
++folderAsset: yes
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs b/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs
+new file mode 100644
+index 0000000..8e0026b
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs	
+@@ -0,0 +1,174 @@
++using System;
++using System.Collections.Generic;
++using UnityEngine;
++
++public enum SolitaireStatus { Playing, Won, Lost }
++
++/// <summary>
++/// The card game itself: the deal, the legal moves, the score, and the decision
++/// that a round is over. No MonoBehaviour, no coroutines and nothing on screen —
++/// the view reads this and calls <see cref="TryPlay"/> / <see cref="TryDraw"/>,
++/// which is what makes the rules testable without ever entering play mode.
++///
++/// Winning here means the board was cleared. Whether that counts as a won *level*
++/// is the runner's call, because only the runner knows the level's target score.
++/// </summary>
++public class SolitaireGame
++{
++    public const int PointsPerCard = 100;
++    public const int BoardClearBonus = 1000;
++    public const int PointsPerUnusedStockCard = 50;
++
++    readonly IReadOnlyList<SolitaireBoardLayout.Slot> _slots;
++    readonly Card[] _tableau;
++    readonly bool[] _cleared;
++    readonly List<Card> _stock;
++
++    int _stockIndex;
++
++    /// <summary>Raised after every accepted move, once the new state is settled.</summary>
++    public event Action Changed;
++
++    /// <summary>Raised with the slot a card just left, for the view to animate.</summary>
++    public event Action<int> SlotCleared;
++
++    public SolitaireGame(SolitaireBoardLayout layout, int seed)
++        : this(layout, CardDeck.BuildShuffled(seed)) { }
++
++    /// <summary>
++    /// Deals a known set of cards: tableau slots in index order, then the starting
++    /// waste card, then the draw pile. Tests use this to set up an exact board.
++    /// </summary>
++    public SolitaireGame(SolitaireBoardLayout layout, IReadOnlyList<Card> deal)
++    {
++        if (layout == null) throw new ArgumentNullException(nameof(layout));
++        if (deal == null) throw new ArgumentNullException(nameof(deal));
++
++        _slots = layout.EffectiveSlots;
++        if (_slots == null || _slots.Count == 0)
++            throw new ArgumentException("Board layout has no slots.", nameof(layout));
++
++        var stockCount = Mathf.Max(0, layout.StockCount);
++        var needed = _slots.Count + 1 + stockCount;   // tableau + the face-up card + the pile
++
++        if (deal.Count < needed)
++            throw new ArgumentException(
++                $"Layout needs {needed} cards ({_slots.Count} tableau + 1 waste + {stockCount} stock) but was dealt {deal.Count}.",
++                nameof(deal));
++
++        _tableau = new Card[_slots.Count];
++        _cleared = new bool[_slots.Count];
++
++        for (var i = 0; i < _slots.Count; i++)
++        {
++            _tableau[i] = deal[i];
++
++            var blockers = _slots[i].Blockers;
++            if (blockers == null) continue;
++
++            foreach (var blocker in blockers)
++                if (blocker < 0 || blocker >= _slots.Count)
++                    throw new ArgumentException($"Slot {i} lists blocker {blocker}, which is not a slot.", nameof(layout));
++        }
++
++        Active = deal[_slots.Count];
++
++        _stock = new List<Card>(stockCount);
++        for (var i = 0; i < stockCount; i++)
++            _stock.Add(deal[_slots.Count + 1 + i]);
++    }
++
++    public SolitaireStatus Status { get; private set; } = SolitaireStatus.Playing;
++
++    /// <summary>The face-up card everything is played onto.</summary>
++    public Card Active { get; private set; }
++
++    public int SlotCount => _tableau.Length;
++    public int StockRemaining => _stock.Count - _stockIndex;
++    public int CardsCleared { get; private set; }
++    public int CardsRemaining => _tableau.Length - CardsCleared;
++    public int Score { get; private set; }
++
++    /// <summary>How many cards have come off the board since the last draw. Drives the scoring streak.</summary>
++    public int Combo { get; private set; }
++
++    public Card CardAt(int slot) => _tableau[slot];
++    public Vector2 PositionOf(int slot) => _slots[slot].Position;
++    public bool IsCleared(int slot) => _cleared[slot];
++
++    /// <summary>True while another card still lies on top of this one.</summary>
++    public bool IsBlocked(int slot)
++    {
++        var blockers = _slots[slot].Blockers;
++        if (blockers == null) return false;
++
++        foreach (var blocker in blockers)
++            if (!_cleared[blocker]) return true;
++
++        return false;
++    }
++
++    public bool IsPlayable(int slot) =>
++        Status == SolitaireStatus.Playing &&
++        !_cleared[slot] &&
++        !IsBlocked(slot) &&
++        _tableau[slot].Matches(Active);
++
++    public bool HasPlayableSlot()
++    {
++        for (var i = 0; i < _tableau.Length; i++)
++            if (IsPlayable(i)) return true;
++
++        return false;
++    }
++
++    /// <summary>Takes the card in this slot onto the waste pile. Rejects anything illegal.</summary>
++    public bool TryPlay(int slot)
++    {
++        if (slot < 0 || slot >= _tableau.Length) return false;
++        if (!IsPlayable(slot)) return false;
++
++        Active = _tableau[slot];
++        _cleared[slot] = true;
++        CardsCleared++;
++
++        // Each card in an unbroken run is worth more than the last — that streak is
++        // the whole reason to hunt for chains instead of drawing.
++        Combo++;
++        Score += PointsPerCard * Combo;
++
++        SlotCleared?.Invoke(slot);
++        Settle();
++        return true;
++    }
++
++    /// <summary>Turns the top card of the draw pile face up, which breaks the streak.</summary>
++    public bool TryDraw()
++    {
++        if (Status != SolitaireStatus.Playing || StockRemaining == 0) return false;
++
++        Active = _stock[_stockIndex++];
++        Combo = 0;
++
++        Settle();
++        return true;
++    }
++
++    void Settle()
++    {
++        if (Status == SolitaireStatus.Playing)
++        {
++            if (CardsCleared == _tableau.Length)
++            {
++                Score += BoardClearBonus + StockRemaining * PointsPerUnusedStockCard;
++                Status = SolitaireStatus.Won;
++            }
++            else if (StockRemaining == 0 && !HasPlayableSlot())
++            {
++                Status = SolitaireStatus.Lost;
++            }
++        }
++
++        Changed?.Invoke();
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs.meta
+new file mode 100644
+index 0000000..0ff5d6d
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Game/SolitaireGame.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 382c15a0a365420bb5c2b4902e9d088a
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Model.meta b/Cat Solitaire/Assets/Dev/Solitaire/Model.meta
+new file mode 100644
+index 0000000..e30f899
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Model.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: 29e1ec0e63e24b4f9739b7cc02d969ac
++folderAsset: yes
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs b/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs
+new file mode 100644
+index 0000000..679ab22
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs	
+@@ -0,0 +1,71 @@
++using System;
++
++public enum CardSuit { Clubs, Diamonds, Hearts, Spades }
++
++/// <summary>
++/// One playing card. A value type on purpose: the game passes cards around by
++/// copying them, so nothing can end up holding a live reference to a card that
++/// has already been played off the board.
++/// </summary>
++[Serializable]
++public struct Card : IEquatable<Card>
++{
++    public const int LowestRank = 1;    // Ace
++    public const int HighestRank = 13;  // King
++
++    public int Rank;
++    public CardSuit Suit;
++
++    public Card(int rank, CardSuit suit)
++    {
++        Rank = rank;
++        Suit = suit;
++    }
++
++    public bool IsRed => Suit == CardSuit.Hearts || Suit == CardSuit.Diamonds;
++
++    /// <summary>
++    /// The tri-peaks matching rule: one rank apart, and the sequence wraps round,
++    /// so a King takes an Ace and an Ace takes a King. Suit never matters.
++    /// </summary>
++    public bool Matches(Card other)
++    {
++        var diff = Math.Abs(Rank - other.Rank);
++        return diff == 1 || diff == HighestRank - LowestRank;
++    }
++
++    public string RankLabel
++    {
++        get
++        {
++            switch (Rank)
++            {
++                case 1: return "A";
++                case 11: return "J";
++                case 12: return "Q";
++                case 13: return "K";
++                default: return Rank.ToString();
++            }
++        }
++    }
++
++    public string SuitLabel
++    {
++        get
++        {
++            switch (Suit)
++            {
++                case CardSuit.Clubs: return "♣";
++                case CardSuit.Diamonds: return "♦";
++                case CardSuit.Hearts: return "♥";
++                default: return "♠";
++            }
++        }
++    }
++
++    public override string ToString() => RankLabel + SuitLabel;
++
++    public bool Equals(Card other) => Rank == other.Rank && Suit == other.Suit;
++    public override bool Equals(object obj) => obj is Card other && Equals(other);
++    public override int GetHashCode() => Rank * 4 + (int)Suit;
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs.meta
+new file mode 100644
+index 0000000..5a3eefe
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Model/Card.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 9d6ee2ed194a48f0aff5a0c405c5e4ff
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs b/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs
+new file mode 100644
+index 0000000..45a7301
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs	
+@@ -0,0 +1,41 @@
++using System;
++using System.Collections.Generic;
++
++/// <summary>
++/// Builds and shuffles the 52-card deck. The shuffle is seeded so a level deals
++/// the same board every time it is replayed — the tests rely on that, and so does
++/// any "everyone gets today's board" feature later on.
++/// </summary>
++public static class CardDeck
++{
++    public const int Size = 52;
++
++    public static List<Card> BuildStandard()
++    {
++        var cards = new List<Card>(Size);
++
++        foreach (CardSuit suit in Enum.GetValues(typeof(CardSuit)))
++            for (var rank = Card.LowestRank; rank <= Card.HighestRank; rank++)
++                cards.Add(new Card(rank, suit));
++
++        return cards;
++    }
++
++    public static List<Card> BuildShuffled(int seed)
++    {
++        var cards = BuildStandard();
++        Shuffle(cards, new System.Random(seed));
++        return cards;
++    }
++
++    public static void Shuffle(IList<Card> cards, System.Random random)
++    {
++        for (var i = cards.Count - 1; i > 0; i--)
++        {
++            var j = random.Next(i + 1);
++            var swap = cards[i];
++            cards[i] = cards[j];
++            cards[j] = swap;
++        }
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs.meta
+new file mode 100644
+index 0000000..b2c62a3
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Model/CardDeck.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: abcb6942985045b2801c4b61f3de1bce
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/Solitaire.asmdef b/Cat Solitaire/Assets/Dev/Solitaire/Solitaire.asmdef
+index 5b6577e..04a29a3 100644
+--- a/Cat Solitaire/Assets/Dev/Solitaire/Solitaire.asmdef	
++++ b/Cat Solitaire/Assets/Dev/Solitaire/Solitaire.asmdef	
+@@ -2,7 +2,9 @@
+     "name": "Solitaire",
+     "rootNamespace": "",
+     "references": [
+-        "Core"
++        "Core",
++        "UnityEngine.UI",
++        "Unity.TextMeshPro"
+     ],
+     "includePlatforms": [],
+     "excludePlatforms": [],
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View.meta b/Cat Solitaire/Assets/Dev/Solitaire/View.meta
+new file mode 100644
+index 0000000..389b2f9
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View.meta	
+@@ -0,0 +1,8 @@
++fileFormatVersion: 2
++guid: ab4d655247dd46f683873bc5c126b1bd
++folderAsset: yes
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs
+new file mode 100644
+index 0000000..64f3815
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs	
+@@ -0,0 +1,84 @@
++using System;
++using TMPro;
++using UnityEngine;
++using UnityEngine.UI;
++
++/// <summary>
++/// One card on screen. It knows nothing about the rules: it is told what to show
++/// and it reports taps. Placeholder art — a panel with the rank and suit on it —
++/// so swapping in real card art means changing this file and nothing else.
++/// </summary>
++public class SolitaireCardView : MonoBehaviour
++{
++    public static readonly Vector2 CardSize = new Vector2(150f, 210f);
++
++    static readonly Color FaceColor = new Color(0.98f, 0.97f, 0.94f);
++    static readonly Color PlayableColor = new Color(1f, 0.95f, 0.65f);
++    static readonly Color BlockedColor = new Color(0.62f, 0.62f, 0.66f);
++    static readonly Color RedInk = new Color(0.78f, 0.16f, 0.20f);
++    static readonly Color BlackInk = new Color(0.12f, 0.12f, 0.16f);
++
++    /// <summary>The tapped card. The runner turns this into a move.</summary>
++    public event Action<SolitaireCardView> Clicked;
++
++    public int Slot { get; private set; } = -1;
++
++    RectTransform _rect;
++    Image _background;
++    TMP_Text _label;
++    Button _button;
++
++    public static SolitaireCardView Create(Transform parent, string name, int slot)
++    {
++        var background = SolitaireUi.Panel(name, parent, CardSize, FaceColor);
++
++        var view = background.gameObject.AddComponent<SolitaireCardView>();
++        view.Slot = slot;
++        view._rect = (RectTransform)background.transform;
++        view._background = background;
++
++        view._button = background.gameObject.AddComponent<Button>();
++        view._button.targetGraphic = background;
++        view._button.onClick.AddListener(view.OnClicked);
++
++        view._label = SolitaireUi.Label("Face", background.transform, string.Empty, 56f, BlackInk);
++        var labelRect = (RectTransform)view._label.transform;
++        labelRect.anchorMin = Vector2.zero;
++        labelRect.anchorMax = Vector2.one;
++        labelRect.offsetMin = Vector2.zero;
++        labelRect.offsetMax = Vector2.zero;
++
++        return view;
++    }
++
++    public void SetPosition(Vector2 anchoredPosition) => _rect.anchoredPosition = anchoredPosition;
++
++    /// <param name="playable">The card can be taken right now — highlight it.</param>
++    /// <param name="blocked">Another card still lies on top of it.</param>
++    public void Show(Card card, bool playable, bool blocked)
++    {
++        gameObject.SetActive(true);
++
++        _label.text = card.RankLabel + "\n" + card.SuitLabel;
++        _label.color = blocked ? BlackInk : card.IsRed ? RedInk : BlackInk;
++
++        _background.color = blocked ? BlockedColor : playable ? PlayableColor : FaceColor;
++
++        // A blocked card is scenery: let taps fall through to whatever is on top of it.
++        _button.interactable = !blocked;
++        _background.raycastTarget = !blocked;
++    }
++
++    public void Hide() => gameObject.SetActive(false);
++
++    /// <summary>Stops the board reacting to taps once the round is decided.</summary>
++    public void Freeze()
++    {
++        _button.interactable = false;
++        _background.raycastTarget = false;
++    }
++
++    void OnClicked() => Clicked?.Invoke(this);
++
++    void OnDestroy() => Clicked = null;
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs.meta
+new file mode 100644
+index 0000000..0ffd459
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireCardView.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 33960db4cc6c4c9ba4a3f70c3d0b8abb
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs
+new file mode 100644
+index 0000000..2d95dea
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs	
+@@ -0,0 +1,269 @@
++using System;
++using System.Collections;
++using TMPro;
++using UnityEngine;
++using UnityEngine.UI;
++
++/// <summary>
++/// Runs one solitaire level: builds the board from the level's rule asset, lets
++/// the player play it, and hands exactly one <see cref="LevelResult"/> back to
++/// GameFlow. This is the Solitaire assembly's only point of contact with the meta
++/// game, and it never touches the wallet — GameFlow owns the money.
++/// </summary>
++public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
++{
++    [Header("Content")]
++    [Tooltip("Used when the LevelDef carries no solitaire rules, and when this scene is played on its own.")]
++    [SerializeField] SolitaireLevelDef _fallbackRules;
++
++    [Header("Board")]
++    [Tooltip("Left empty, the runner builds a full-screen board root under itself.")]
++    [SerializeField] RectTransform _boardRoot;
++    [SerializeField] float _columnSpacing = 160f;   // pixels per card width in the layout
++    [SerializeField] float _rowSpacing = 210f;      // pixels per card height in the layout
++    [SerializeField] Vector2 _boardOffset = new Vector2(0f, 140f);
++    [SerializeField] Vector2 _stockPosition = new Vector2(-260f, -330f);
++    [SerializeField] Vector2 _wastePosition = new Vector2(0f, -330f);
++
++    [Header("Flow")]
++    [Tooltip("How long the finished board stays on screen before the result goes back to the hub.")]
++    [SerializeField] float _endOfRoundPause = 0.9f;
++
++    Action<LevelResult> _onComplete;
++    SolitaireGame _game;
++    SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
++    SolitaireCardView[] _cardViews;
++    SolitaireCardView _wasteView;
++    Button _stockButton;
++    Image _stockBack;
++    TMP_Text _stockLabel, _scoreLabel, _messageLabel;
++    int _targetScore;
++    bool _roundOver;
++
++    public void Run(LevelDef def, Action<LevelResult> onComplete)
++    {
++        _onComplete = onComplete;
++
++        var rules = def != null ? def.RuleData as SolitaireLevelDef : null;
++
++        if (rules == null && def != null && def.RuleData != null)
++            Debug.LogWarning($"Level '{LevelName(def)}' carries {def.RuleData.GetType().Name} as its rule data, " +
++                             "which this runner cannot read. Falling back to the default board.", this);
++
++        if (rules == null) rules = _fallbackRules;
++
++        try
++        {
++            Build(rules);
++        }
++        catch (Exception e)
++        {
++            // Bad content must not leave GameFlow waiting on a callback that never comes.
++            Debug.LogException(e, this);
++            Finish(LevelOutcome.Quit);
++        }
++    }
++
++    /// <summary>Wire this to a quit button. Quitting pays nothing, by GameFlow's rules.</summary>
++    public void Quit() => Finish(LevelOutcome.Quit);
++
++    void Build(SolitaireLevelDef rules)
++    {
++        _targetScore = rules != null ? rules.TargetScore : 0;
++
++        var layout = rules != null && rules.Layout != null ? rules.Layout : DefaultLayout();
++        var seed = rules != null && rules.Seed != 0
++            ? rules.Seed
++            : UnityEngine.Random.Range(int.MinValue, int.MaxValue);
++
++        _game = new SolitaireGame(layout, seed);
++
++        BuildBoard(layout);
++        BuildPiles();
++        BuildHud();
++
++        _game.Changed += Refresh;
++        Refresh();
++    }
++
++    SolitaireBoardLayout DefaultLayout()
++    {
++        // Left in memory only — it is never saved as an asset, so it is ours to destroy.
++        _runtimeLayout = ScriptableObject.CreateInstance<SolitaireBoardLayout>();
++        _runtimeLayout.name = "Classic Tri-Peaks (runtime)";
++        return _runtimeLayout;
++    }
++
++    void BuildBoard(SolitaireBoardLayout layout)
++    {
++        if (_boardRoot == null) _boardRoot = SolitaireUi.Stretch("Board", transform);
++
++        for (var i = _boardRoot.childCount - 1; i >= 0; i--)
++            Destroy(_boardRoot.GetChild(i).gameObject);
++
++        var slots = layout.EffectiveSlots;
++        var center = LayoutCenter(slots);
++
++        _cardViews = new SolitaireCardView[slots.Count];
++
++        for (var i = 0; i < slots.Count; i++)
++        {
++            // Slots come out of the layout peaks first, so the lower rows are created
++            // last and draw on top of the cards they overlap — which is what blocks them.
++            var view = SolitaireCardView.Create(_boardRoot, $"Card {i}", i);
++            view.SetPosition(ToPixels(slots[i].Position - center) + _boardOffset);
++            view.Clicked += OnCardClicked;
++
++            _cardViews[i] = view;
++        }
++    }
++
++    void BuildPiles()
++    {
++        _stockBack = SolitaireUi.Panel("Stock", _boardRoot, SolitaireCardView.CardSize, new Color(0.24f, 0.35f, 0.62f));
++        ((RectTransform)_stockBack.transform).anchoredPosition = _stockPosition;
++
++        _stockButton = _stockBack.gameObject.AddComponent<Button>();
++        _stockButton.targetGraphic = _stockBack;
++        _stockButton.onClick.AddListener(OnStockClicked);
++
++        _stockLabel = SolitaireUi.Label("Count", _stockBack.transform, string.Empty, 56f, Color.white);
++        var countRect = (RectTransform)_stockLabel.transform;
++        countRect.anchorMin = Vector2.zero;
++        countRect.anchorMax = Vector2.one;
++        countRect.offsetMin = Vector2.zero;
++        countRect.offsetMax = Vector2.zero;
++
++        _wasteView = SolitaireCardView.Create(_boardRoot, "Waste", -1);
++        _wasteView.SetPosition(_wastePosition);
++    }
++
++    void BuildHud()
++    {
++        var hud = SolitaireUi.Stretch("HUD", transform);
++
++        _scoreLabel = SolitaireUi.Label("Score", hud, string.Empty, 48f, Color.white, TextAlignmentOptions.TopLeft);
++        TopBar((RectTransform)_scoreLabel.transform, top: 40f, height: 60f);
++
++        _messageLabel = SolitaireUi.Label("Message", hud, string.Empty, 64f, Color.white, TextAlignmentOptions.Top);
++        TopBar((RectTransform)_messageLabel.transform, top: 120f, height: 80f);
++
++        var quit = SolitaireUi.Button("Quit", hud, "Quit", new Vector2(180f, 80f));
++        var quitRect = (RectTransform)quit.transform;
++        quitRect.anchorMin = quitRect.anchorMax = new Vector2(1f, 1f);
++        quitRect.pivot = new Vector2(1f, 1f);
++        quitRect.anchoredPosition = new Vector2(-40f, -40f);
++        quit.onClick.AddListener(Quit);
++    }
++
++    /// <summary>Pins a label across the top of the screen, inset by a 40px margin.</summary>
++    static void TopBar(RectTransform rect, float top, float height)
++    {
++        rect.anchorMin = new Vector2(0f, 1f);
++        rect.anchorMax = new Vector2(1f, 1f);
++        rect.pivot = new Vector2(0.5f, 1f);
++        rect.sizeDelta = new Vector2(-80f, height);
++        rect.anchoredPosition = new Vector2(0f, -top);
++    }
++
++    void OnCardClicked(SolitaireCardView view)
++    {
++        if (_game == null || view.Slot < 0) return;
++
++        _game.TryPlay(view.Slot);   // an illegal tap is simply ignored
++    }
++
++    void OnStockClicked()
++    {
++        if (_game == null) return;
++
++        _game.TryDraw();
++    }
++
++    void Refresh()
++    {
++        for (var i = 0; i < _cardViews.Length; i++)
++        {
++            if (_game.IsCleared(i)) _cardViews[i].Hide();
++            else _cardViews[i].Show(_game.CardAt(i), _game.IsPlayable(i), _game.IsBlocked(i));
++        }
++
++        _wasteView.Show(_game.Active, playable: false, blocked: false);
++        _wasteView.Freeze();
++
++        _stockLabel.text = _game.StockRemaining.ToString();
++        _stockButton.interactable = _game.StockRemaining > 0 && _game.Status == SolitaireStatus.Playing;
++
++        _scoreLabel.text = _game.Combo > 1
++            ? $"{_game.Score}   x{_game.Combo}"
++            : _game.Score.ToString();
++
++        if (_game.Status != SolitaireStatus.Playing && !_roundOver) OnRoundOver();
++    }
++
++    void OnRoundOver()
++    {
++        _roundOver = true;
++        _game.Changed -= Refresh;
++
++        foreach (var view in _cardViews) view.Freeze();
++        _stockButton.interactable = false;
++
++        var won = _game.Status == SolitaireStatus.Won && _game.Score >= _targetScore;
++
++        _messageLabel.text = _game.Status == SolitaireStatus.Won
++            ? won ? "Board cleared!" : $"Cleared, but {_targetScore} points were needed"
++            : "No moves left";
++
++        StartCoroutine(FinishAfterPause(won ? LevelOutcome.Win : LevelOutcome.Lose));
++    }
++
++    IEnumerator FinishAfterPause(LevelOutcome outcome)
++    {
++        // Let the last card land before the hub comes back.
++        yield return new WaitForSeconds(_endOfRoundPause);
++
++        Finish(outcome);
++    }
++
++    void Finish(LevelOutcome outcome)
++    {
++        // Clear the callback first: a double-tap must never report twice, or the
++        // player gets paid twice for one level.
++        var callback = _onComplete;
++        if (callback == null) return;
++        _onComplete = null;
++
++        if (_game != null) _game.Changed -= Refresh;
++
++        callback(new LevelResult
++        {
++            Outcome = outcome,
++            Score = _game != null ? _game.Score : 0
++        });
++    }
++
++    Vector2 ToPixels(Vector2 layoutPosition) =>
++        new Vector2(layoutPosition.x * _columnSpacing, layoutPosition.y * _rowSpacing);
++
++    static Vector2 LayoutCenter(System.Collections.Generic.IReadOnlyList<SolitaireBoardLayout.Slot> slots)
++    {
++        var min = slots[0].Position;
++        var max = slots[0].Position;
++
++        foreach (var slot in slots)
++        {
++            min = Vector2.Min(min, slot.Position);
++            max = Vector2.Max(max, slot.Position);
++        }
++        return (min + max) * 0.5f;
++    }
++
++    static string LevelName(LevelDef def) => string.IsNullOrEmpty(def.Id) ? def.name : def.Id;
++
++    void OnDestroy()
++    {
++        if (_game != null) _game.Changed -= Refresh;
++        if (_runtimeLayout != null) Destroy(_runtimeLayout);
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs.meta
+new file mode 100644
+index 0000000..ed6fe40
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 738203b0f2c547eebddf1d41181e9bf3
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs
+new file mode 100644
+index 0000000..84af0ae
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs	
+@@ -0,0 +1,79 @@
++using TMPro;
++using UnityEngine;
++using UnityEngine.UI;
++
++/// <summary>
++/// Builds the placeholder board out of plain UI primitives, so the level is
++/// playable long before any card art exists. Everything here is meant to be
++/// replaced by prefabs once the real art lands — nothing else depends on it.
++/// </summary>
++public static class SolitaireUi
++{
++    public static RectTransform Rect(string name, Transform parent)
++    {
++        var go = new GameObject(name, typeof(RectTransform));
++        go.layer = LayerMask.NameToLayer("UI");
++
++        // Set every anchor explicitly: a RectTransform built in code does not come
++        // out of the box the way one added through the GameObject menu does.
++        var rect = (RectTransform)go.transform;
++        rect.SetParent(parent, worldPositionStays: false);
++        rect.localScale = Vector3.one;
++        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
++        rect.anchoredPosition = Vector2.zero;
++        rect.sizeDelta = new Vector2(100f, 100f);
++        return rect;
++    }
++
++    /// <summary>A rect that fills its parent, for board and HUD roots.</summary>
++    public static RectTransform Stretch(string name, Transform parent)
++    {
++        var rect = Rect(name, parent);
++        rect.anchorMin = Vector2.zero;
++        rect.anchorMax = Vector2.one;
++        rect.offsetMin = Vector2.zero;
++        rect.offsetMax = Vector2.zero;
++        return rect;
++    }
++
++    public static Image Panel(string name, Transform parent, Vector2 size, Color color)
++    {
++        var rect = Rect(name, parent);
++        rect.sizeDelta = size;
++
++        var image = rect.gameObject.AddComponent<Image>();
++        image.color = color;
++        return image;
++    }
++
++    public static TMP_Text Label(string name, Transform parent, string text, float fontSize, Color color,
++        TextAlignmentOptions alignment = TextAlignmentOptions.Center)
++    {
++        var rect = Rect(name, parent);
++
++        var label = rect.gameObject.AddComponent<TextMeshProUGUI>();
++        label.text = text;
++        label.fontSize = fontSize;
++        label.color = color;
++        label.alignment = alignment;
++        label.raycastTarget = false;
++        return label;
++    }
++
++    public static Button Button(string name, Transform parent, string text, Vector2 size)
++    {
++        var image = Panel(name, parent, size, new Color(0.16f, 0.16f, 0.22f, 0.9f));
++
++        var button = image.gameObject.AddComponent<Button>();
++        button.targetGraphic = image;
++
++        var label = Label("Label", image.transform, text, 36f, Color.white);
++        var rect = (RectTransform)label.transform;
++        rect.anchorMin = Vector2.zero;
++        rect.anchorMax = Vector2.one;
++        rect.offsetMin = Vector2.zero;
++        rect.offsetMax = Vector2.zero;
++
++        return button;
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs.meta b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs.meta
+new file mode 100644
+index 0000000..45583b0
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireUi.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: ddd5f406df4d4957bc060b093a88374c
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs b/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs
+new file mode 100644
+index 0000000..9bf85bd
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs	
+@@ -0,0 +1,243 @@
++using System.Collections.Generic;
++using NUnit.Framework;
++using UnityEngine;
++
++public class SolitaireGameTests
++{
++    readonly List<Object> _created = new();
++
++    [TearDown]
++    public void DestroyLayouts()
++    {
++        foreach (var asset in _created) Object.DestroyImmediate(asset);
++        _created.Clear();
++    }
++
++    /// <summary>Two free cards side by side with a third resting on both of them.</summary>
++    SolitaireBoardLayout TinyPeak(int stockCount)
++    {
++        var layout = ScriptableObject.CreateInstance<SolitaireBoardLayout>();
++        _created.Add(layout);
++
++        layout.StockCount = stockCount;
++        layout.Slots = new[]
++        {
++            new SolitaireBoardLayout.Slot { Position = new Vector2(0.5f, 0.5f), Blockers = new[] { 1, 2 } },
++            new SolitaireBoardLayout.Slot { Position = new Vector2(0f, 0f) },
++            new SolitaireBoardLayout.Slot { Position = new Vector2(1f, 0f) },
++        };
++        return layout;
++    }
++
++    SolitaireBoardLayout ClassicLayout()
++    {
++        var layout = ScriptableObject.CreateInstance<SolitaireBoardLayout>();
++        _created.Add(layout);
++        return layout;   // no authored slots, so it falls back to the classic three peaks
++    }
++
++    static Card C(int rank, CardSuit suit) => new Card(rank, suit);
++
++    [Test]
++    public void StandardDeck_IsFiftyTwoDistinctCards()
++    {
++        var deck = CardDeck.BuildStandard();
++
++        Assert.AreEqual(CardDeck.Size, deck.Count);
++        CollectionAssert.AllItemsAreUnique(deck);
++    }
++
++    [Test]
++    public void Matching_IsOneRankApart_AndWrapsAroundAceAndKing()
++    {
++        Assert.IsTrue(C(5, CardSuit.Spades).Matches(C(6, CardSuit.Hearts)));
++        Assert.IsTrue(C(5, CardSuit.Spades).Matches(C(4, CardSuit.Spades)));
++        Assert.IsTrue(C(13, CardSuit.Clubs).Matches(C(1, CardSuit.Hearts)), "A King takes an Ace.");
++        Assert.IsTrue(C(1, CardSuit.Clubs).Matches(C(13, CardSuit.Hearts)), "An Ace takes a King.");
++
++        Assert.IsFalse(C(5, CardSuit.Spades).Matches(C(7, CardSuit.Spades)));
++        Assert.IsFalse(C(5, CardSuit.Spades).Matches(C(5, CardSuit.Hearts)), "A card never takes its own rank.");
++    }
++
++    [Test]
++    public void ClassicLayout_IsThreePeaksOverTenFreeCards()
++    {
++        var slots = SolitaireBoardLayout.BuildClassicTriPeaks();
++
++        Assert.AreEqual(28, slots.Length);
++
++        var free = 0;
++        foreach (var slot in slots)
++            if (slot.Blockers.Length == 0) free++;
++
++        Assert.AreEqual(10, free, "Only the bottom row starts out uncovered.");
++
++        for (var i = 0; i < 3; i++)
++            Assert.AreEqual(2, slots[i].Blockers.Length, "Every peak sits on exactly two cards.");
++    }
++
++    [Test]
++    public void Deal_LeavesTheBottomRowPlayableAndThePeakBlocked()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(5, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        Assert.IsTrue(game.IsBlocked(0));
++        Assert.IsFalse(game.IsBlocked(1));
++        Assert.AreEqual(C(4, CardSuit.Clubs), game.Active);
++        Assert.AreEqual(1, game.StockRemaining);
++        Assert.AreEqual(SolitaireStatus.Playing, game.Status);
++    }
++
++    [Test]
++    public void TryPlay_RejectsBlockedAndNonMatchingCards()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(5, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        Assert.IsFalse(game.TryPlay(0), "The peak is still covered.");
++        Assert.IsFalse(game.TryPlay(1), "A two does not take a four.");
++        Assert.AreEqual(0, game.CardsCleared);
++        Assert.AreEqual(0, game.Score);
++    }
++
++    [Test]
++    public void ClearingBothCoveringCards_FreesThePeak()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(5, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        Assert.IsTrue(game.TryPlay(2), "A three takes a four.");
++        Assert.AreEqual(C(3, CardSuit.Diamonds), game.Active);
++        Assert.IsTrue(game.IsCleared(2));
++        Assert.IsTrue(game.IsBlocked(0), "One of the two covering cards is still there.");
++
++        Assert.IsTrue(game.TryPlay(1), "A two takes a three.");
++        Assert.IsFalse(game.IsBlocked(0));
++    }
++
++    [Test]
++    public void Score_GrowsWithEachCardInTheStreak()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(5, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        game.TryPlay(2);
++        Assert.AreEqual(1, game.Combo);
++        Assert.AreEqual(SolitaireGame.PointsPerCard, game.Score);
++
++        game.TryPlay(1);
++        Assert.AreEqual(2, game.Combo);
++        Assert.AreEqual(SolitaireGame.PointsPerCard * 3, game.Score, "100 for the first card, 200 for the second.");
++    }
++
++    [Test]
++    public void TryDraw_TakesTheTopOfTheStockAndBreaksTheStreak()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(5, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        game.TryPlay(2);
++        Assert.IsTrue(game.TryDraw());
++
++        Assert.AreEqual(C(13, CardSuit.Spades), game.Active);
++        Assert.AreEqual(0, game.Combo);
++        Assert.AreEqual(0, game.StockRemaining);
++        Assert.IsFalse(game.TryDraw(), "The pile is empty.");
++    }
++
++    [Test]
++    public void ClearingTheBoard_WinsAndPaysTheBonus()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 1), new[]
++        {
++            C(1, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++            C(13, CardSuit.Spades),
++        });
++
++        Assert.IsTrue(game.TryPlay(2));
++        Assert.IsTrue(game.TryPlay(1));
++        Assert.IsTrue(game.TryPlay(0), "An Ace takes a two.");
++
++        Assert.AreEqual(SolitaireStatus.Won, game.Status);
++        Assert.AreEqual(0, game.CardsRemaining);
++
++        var streak = SolitaireGame.PointsPerCard * (1 + 2 + 3);
++        Assert.AreEqual(streak + SolitaireGame.BoardClearBonus + SolitaireGame.PointsPerUnusedStockCard, game.Score,
++            "The unplayed stock card is worth a bonus of its own.");
++    }
++
++    [Test]
++    public void RunningOutOfMovesWithAnEmptyStock_Loses()
++    {
++        var game = new SolitaireGame(TinyPeak(stockCount: 0), new[]
++        {
++            C(9, CardSuit.Spades), C(2, CardSuit.Hearts), C(3, CardSuit.Diamonds),
++            C(4, CardSuit.Clubs),
++        });
++
++        Assert.IsTrue(game.TryPlay(2));
++        Assert.IsTrue(game.TryPlay(1));
++
++        // The peak is free now, but a nine does not take a two and there is nothing to draw.
++        Assert.IsFalse(game.IsBlocked(0));
++        Assert.AreEqual(SolitaireStatus.Lost, game.Status);
++        Assert.IsFalse(game.TryPlay(0));
++    }
++
++    [Test]
++    public void TheSameSeed_DealsTheSameBoard()
++    {
++        var first = new SolitaireGame(ClassicLayout(), seed: 12345);
++        var second = new SolitaireGame(ClassicLayout(), seed: 12345);
++        var other = new SolitaireGame(ClassicLayout(), seed: 999);
++
++        Assert.AreEqual(first.Active, second.Active);
++        for (var i = 0; i < first.SlotCount; i++)
++            Assert.AreEqual(first.CardAt(i), second.CardAt(i));
++
++        var identical = first.Active.Equals(other.Active);
++        for (var i = 0; i < first.SlotCount; i++)
++            identical &= first.CardAt(i).Equals(other.CardAt(i));
++
++        Assert.IsFalse(identical, "A different seed has to deal a different board.");
++    }
++
++    [Test]
++    public void ClassicBoard_UsesTheWholeDeck()
++    {
++        var game = new SolitaireGame(ClassicLayout(), seed: 7);
++
++        Assert.AreEqual(28, game.SlotCount);
++        Assert.AreEqual(23, game.StockRemaining);
++        Assert.AreEqual(CardDeck.Size, game.SlotCount + 1 + game.StockRemaining);
++    }
++
++    [Test]
++    public void ADealTooSmallForTheLayout_IsRejected()
++    {
++        Assert.Throws<System.ArgumentException>(() =>
++            new SolitaireGame(TinyPeak(stockCount: 5), new[] { C(1, CardSuit.Spades) }));
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs.meta b/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs.meta
+new file mode 100644
+index 0000000..2841a34
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Tests/SolitaireGameTests.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: 44e01613fe124187b1bc41aaccc0dca0
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Tests/Tests.asmdef b/Cat Solitaire/Assets/Dev/Tests/Tests.asmdef
+index 28939b4..ddf81ce 100644
+--- a/Cat Solitaire/Assets/Dev/Tests/Tests.asmdef	
++++ b/Cat Solitaire/Assets/Dev/Tests/Tests.asmdef	
+@@ -4,6 +4,7 @@
+     "references": [
+         "Core",
+         "Meta",
++        "Solitaire",
+         "UnityEngine.TestRunner",
+         "UnityEditor.TestRunner"
+     ],
+diff --git a/Cat Solitaire/Assets/Scenes/Solitaire.unity b/Cat Solitaire/Assets/Scenes/Solitaire.unity
+new file mode 100644
+index 0000000..5bd470c
+--- /dev/null
++++ b/Cat Solitaire/Assets/Scenes/Solitaire.unity	
+@@ -0,0 +1,323 @@
++%YAML 1.1
++%TAG !u! tag:unity3d.com,2011:
++--- !u!29 &1
++OcclusionCullingSettings:
++  m_ObjectHideFlags: 0
++  serializedVersion: 2
++  m_OcclusionBakeSettings:
++    smallestOccluder: 5
++    smallestHole: 0.25
++    backfaceThreshold: 100
++  m_SceneGUID: 00000000000000000000000000000000
++  m_OcclusionCullingData: {fileID: 0}
++--- !u!104 &2
++RenderSettings:
++  m_ObjectHideFlags: 0
++  serializedVersion: 10
++  m_Fog: 0
++  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
++  m_FogMode: 3
++  m_FogDensity: 0.01
++  m_LinearFogStart: 0
++  m_LinearFogEnd: 300
++  m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
++  m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
++  m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
++  m_AmbientIntensity: 1
++  m_AmbientMode: 0
++  m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
++  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
++  m_HaloStrength: 0.5
++  m_FlareStrength: 1
++  m_FlareFadeSpeed: 3
++  m_HaloTexture: {fileID: 0}
++  m_SpotCookie: {fileID: 10001, guid: 0000000000000000e000000000000000, type: 0}
++  m_DefaultReflectionMode: 0
++  m_DefaultReflectionResolution: 128
++  m_ReflectionBounces: 1
++  m_ReflectionIntensity: 1
++  m_CustomReflection: {fileID: 0}
++  m_Sun: {fileID: 0}
++  m_UseRadianceAmbientProbe: 0
++--- !u!157 &3
++LightmapSettings:
++  m_ObjectHideFlags: 0
++  serializedVersion: 13
++  m_BakeOnSceneLoad: 0
++  m_GISettings:
++    serializedVersion: 2
++    m_BounceScale: 1
++    m_IndirectOutputScale: 1
++    m_AlbedoBoost: 1
++    m_EnvironmentLightingMode: 0
++    m_EnableBakedLightmaps: 1
++    m_EnableRealtimeLightmaps: 0
++  m_LightmapEditorSettings:
++    serializedVersion: 12
++    m_Resolution: 2
++    m_BakeResolution: 40
++    m_AtlasSize: 1024
++    m_AO: 0
++    m_AOMaxDistance: 1
++    m_CompAOExponent: 1
++    m_CompAOExponentDirect: 0
++    m_ExtractAmbientOcclusion: 0
++    m_Padding: 2
++    m_LightmapParameters: {fileID: 0}
++    m_LightmapsBakeMode: 1
++    m_TextureCompression: 1
++    m_ReflectionCompression: 2
++    m_MixedBakeMode: 2
++    m_BakeBackend: 2
++    m_PVRSampling: 1
++    m_PVRDirectSampleCount: 32
++    m_PVRSampleCount: 512
++    m_PVRBounces: 2
++    m_PVREnvironmentSampleCount: 256
++    m_PVREnvironmentReferencePointCount: 2048
++    m_PVRFilteringMode: 1
++    m_PVRDenoiserTypeDirect: 1
++    m_PVRDenoiserTypeIndirect: 1
++    m_PVRDenoiserTypeAO: 1
++    m_PVRFilterTypeDirect: 0
++    m_PVRFilterTypeIndirect: 0
++    m_PVRFilterTypeAO: 0
++    m_PVREnvironmentMIS: 1
++    m_PVRCulling: 1
++    m_PVRFilteringGaussRadiusDirect: 1
++    m_PVRFilteringGaussRadiusIndirect: 1
++    m_PVRFilteringGaussRadiusAO: 1
++    m_PVRFilteringAtrousPositionSigmaDirect: 0.5
++    m_PVRFilteringAtrousPositionSigmaIndirect: 2
++    m_PVRFilteringAtrousPositionSigmaAO: 1
++    m_ExportTrainingData: 0
++    m_TrainingDataDestination: TrainingData
++    m_LightProbeSampleCountMultiplier: 4
++  m_LightingDataAsset: {fileID: 20201, guid: 0000000000000000f000000000000000, type: 0}
++  m_LightingSettings: {fileID: 0}
++--- !u!196 &4
++NavMeshSettings:
++  serializedVersion: 2
++  m_ObjectHideFlags: 0
++  m_BuildSettings:
++    serializedVersion: 3
++    agentTypeID: 0
++    agentRadius: 0.5
++    agentHeight: 2
++    agentSlope: 45
++    agentClimb: 0.4
++    ledgeDropHeight: 0
++    maxJumpAcrossDistance: 0
++    minRegionArea: 2
++    manualCellSize: 0
++    cellSize: 0.16666667
++    manualTileSize: 0
++    tileSize: 256
++    buildHeightMesh: 0
++    maxJobWorkers: 0
++    preserveTilesOutsideBounds: 0
++    debug:
++      m_Flags: 0
++  m_NavMeshData: {fileID: 0}
++--- !u!1 &1000010
++GameObject:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  serializedVersion: 6
++  m_Component:
++  - component: {fileID: 1000011}
++  - component: {fileID: 1000012}
++  - component: {fileID: 1000013}
++  - component: {fileID: 1000014}
++  - component: {fileID: 1000015}
++  m_Layer: 5
++  m_Name: Solitaire
++  m_TagString: Untagged
++  m_Icon: {fileID: 0}
++  m_NavMeshLayer: 0
++  m_StaticEditorFlags: 0
++  m_IsActive: 1
++--- !u!224 &1000011
++RectTransform:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 1000010}
++  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
++  m_LocalPosition: {x: 0, y: 0, z: 0}
++  m_LocalScale: {x: 0, y: 0, z: 0}
++  m_ConstrainProportionsScale: 0
++  m_Children: []
++  m_Father: {fileID: 0}
++  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
++  m_AnchorMin: {x: 0, y: 0}
++  m_AnchorMax: {x: 0, y: 0}
++  m_AnchoredPosition: {x: 0, y: 0}
++  m_SizeDelta: {x: 0, y: 0}
++  m_Pivot: {x: 0, y: 0}
++--- !u!223 &1000012
++Canvas:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 1000010}
++  m_Enabled: 1
++  serializedVersion: 3
++  m_RenderMode: 0
++  m_Camera: {fileID: 0}
++  m_PlaneDistance: 100
++  m_PixelPerfect: 0
++  m_ReceivesEvents: 1
++  m_OverrideSorting: 0
++  m_OverridePixelPerfect: 0
++  m_SortingBucketNormalizedSize: 0
++  m_VertexColorAlwaysGammaSpace: 0
++  m_UseReflectionProbes: 0
++  m_AdditionalShaderChannelsFlag: 25
++  m_UpdateRectTransformForStandalone: 0
++  m_SortingLayerID: 0
++  m_SortingOrder: 10
++  m_TargetDisplay: 0
++--- !u!114 &1000013
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 1000010}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
++  m_Name: 
++  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
++  m_UiScaleMode: 1
++  m_ReferencePixelsPerUnit: 100
++  m_ScaleFactor: 1
++  m_ReferenceResolution: {x: 1920, y: 1080}
++  m_ScreenMatchMode: 0
++  m_MatchWidthOrHeight: 1
++  m_PhysicalUnit: 3
++  m_FallbackScreenDPI: 96
++  m_DefaultSpriteDPI: 96
++  m_DynamicPixelsPerUnit: 1
++  m_PresetInfoIsWorld: 0
++--- !u!114 &1000014
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 1000010}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: dc42784cf147c0c48a680349fa168899, type: 3}
++  m_Name: 
++  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.GraphicRaycaster
++  m_IgnoreReversedGraphics: 1
++  m_BlockingObjects: 0
++  m_BlockingMask:
++    serializedVersion: 2
++    m_Bits: 4294967295
++--- !u!114 &1000015
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 1000010}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 738203b0f2c547eebddf1d41181e9bf3, type: 3}
++  m_Name: 
++  m_EditorClassIdentifier: Solitaire::SolitaireLevelRunner
++  _fallbackRules: {fileID: 11400000, guid: 0a160da613d9492b98ba72e1eb109337, type: 2}
++  _boardRoot: {fileID: 0}
++  _columnSpacing: 160
++  _rowSpacing: 210
++  _boardOffset: {x: 0, y: 140}
++  _stockPosition: {x: -260, y: -330}
++  _wastePosition: {x: 0, y: -330}
++  _endOfRoundPause: 0.9
++--- !u!1 &2000010
++GameObject:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  serializedVersion: 6
++  m_Component:
++  - component: {fileID: 2000011}
++  - component: {fileID: 2000013}
++  - component: {fileID: 2000012}
++  m_Layer: 0
++  m_Name: EventSystem
++  m_TagString: Untagged
++  m_Icon: {fileID: 0}
++  m_NavMeshLayer: 0
++  m_StaticEditorFlags: 0
++  m_IsActive: 1
++--- !u!4 &2000011
++Transform:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 2000010}
++  serializedVersion: 2
++  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
++  m_LocalPosition: {x: 0, y: 0, z: 0}
++  m_LocalScale: {x: 1, y: 1, z: 1}
++  m_ConstrainProportionsScale: 0
++  m_Children: []
++  m_Father: {fileID: 0}
++  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
++--- !u!114 &2000012
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 2000010}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 01614664b831546d2ae94a42149d80ac, type: 3}
++  m_Name: 
++  m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.UI.InputSystemUIInputModule
++  m_SendPointerHoverToParent: 1
++  m_MoveRepeatDelay: 0.5
++  m_MoveRepeatRate: 0.1
++  m_XRTrackingOrigin: {fileID: 0}
++  m_ActionsAsset: {fileID: -944628639613478452, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_PointAction: {fileID: -1654692200621890270, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_MoveAction: {fileID: -8784545083839296357, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_SubmitAction: {fileID: 392368643174621059, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_CancelAction: {fileID: 7727032971491509709, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_LeftClickAction: {fileID: 3001919216989983466, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_MiddleClickAction: {fileID: -2185481485913320682, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_RightClickAction: {fileID: -4090225696740746782, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_ScrollWheelAction: {fileID: 6240969308177333660, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_TrackedDevicePositionAction: {fileID: 6564999863303420839, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_TrackedDeviceOrientationAction: {fileID: 7970375526676320489, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
++  m_DeselectOnBackgroundClick: 1
++  m_PointerBehavior: 0
++  m_CursorLockBehavior: 0
++  m_ScrollDeltaPerTick: 6
++--- !u!114 &2000013
++MonoBehaviour:
++  m_ObjectHideFlags: 0
++  m_CorrespondingSourceObject: {fileID: 0}
++  m_PrefabInstance: {fileID: 0}
++  m_PrefabAsset: {fileID: 0}
++  m_GameObject: {fileID: 2000010}
++  m_Enabled: 1
++  m_EditorHideFlags: 0
++  m_Script: {fileID: 11500000, guid: 76c392e42b5098c458856cdf6ecaaaa1, type: 3}
++  m_Name: 
++  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.EventSystems.EventSystem
++  m_FirstSelected: {fileID: 0}
++  m_sendNavigationEvents: 1
++  m_DragThreshold: 10
+diff --git a/Cat Solitaire/Assets/Scenes/Solitaire.unity.meta b/Cat Solitaire/Assets/Scenes/Solitaire.unity.meta
+new file mode 100644
+index 0000000..5ae8e9c
+--- /dev/null
++++ b/Cat Solitaire/Assets/Scenes/Solitaire.unity.meta	
+@@ -0,0 +1,7 @@
++fileFormatVersion: 2
++guid: 82e2b22dc5664a6aa30e311301ffa20f
++DefaultImporter:
++  externalObjects: {}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/ProjectSettings/EditorBuildSettings.asset b/Cat Solitaire/ProjectSettings/EditorBuildSettings.asset
+index 513e6f1..76080f2 100644
+--- a/Cat Solitaire/ProjectSettings/EditorBuildSettings.asset	
++++ b/Cat Solitaire/ProjectSettings/EditorBuildSettings.asset	
+@@ -8,5 +8,8 @@ EditorBuildSettings:
+   - enabled: 1
+     path: Assets/Scenes/SampleScene.unity
+     guid: 99c9720ab356a0642a771bea13969a05
++  - enabled: 1
++    path: Assets/Scenes/Solitaire.unity
++    guid: 82e2b22dc5664a6aa30e311301ffa20f
+   m_configObjects:
+     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+-- 
+2.43.0
+
+
+From 4d597c56407ffb43cc54c2a3c23699db82a10fc7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 30 Aug 2026 07:35:19 +0000
+Subject: [PATCH 2/4] Add the object progress window views
+
+Scripts behind the scene progress popup, so the window built in Hub 1 has
+something driving it.
+
+- ObjectProgressWindow: spawns one Bar per object in the chapter into the
+  scroll view's Content, and refreshes them when a purchase lands or a
+  balance moves. It owns the subscriptions so the rows do not - a chapter
+  with fifty objects still has one listener. Open/Close/Toggle are public
+  for the progress and close buttons.
+- HubObjectBarView: one row. Icon, name and either a price or an owned
+  badge; the button calls ProgressionService.TryPurchase and goes quiet
+  when the object is bought or the player cannot pay.
+- HubObjectDef gains an Icon for the list portrait, falling back to the
+  world sprite while there is no art.
+
+The headline and the progress bar at the top of the window are not
+duplicated here: ChapterProgressView already renders the chapter name, the
+x/y and the fill, so it goes on the window's bar as it does on the hub's.
+---
+ .../Assets/Dev/Meta/Data/HubObjectDef.cs      |   3 +
+ .../Assets/Dev/Meta/View/HubObjectBarView.cs  | 110 +++++++++++++++++
+ .../Dev/Meta/View/HubObjectBarView.cs.meta    |  11 ++
+ .../Dev/Meta/View/ObjectProgressWindow.cs     | 114 ++++++++++++++++++
+ .../Meta/View/ObjectProgressWindow.cs.meta    |  11 ++
+ 5 files changed, 249 insertions(+)
+ create mode 100644 Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs.meta
+ create mode 100644 Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs
+ create mode 100644 Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs.meta
+
+diff --git a/Cat Solitaire/Assets/Dev/Meta/Data/HubObjectDef.cs b/Cat Solitaire/Assets/Dev/Meta/Data/HubObjectDef.cs
+index 695c546..10a65bf 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/Data/HubObjectDef.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/Data/HubObjectDef.cs	
+@@ -11,4 +11,7 @@ public class HubObjectDef : ScriptableObject
+     public string DisplayName;
+     public Price Cost;
+     public Sprite LockedSprite, UnlockedSprite;
++
++    [Tooltip("Small portrait for the progress window's list. Falls back to the world sprite when empty.")]
++    public Sprite Icon;
+ }
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs b/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs
+new file mode 100644
+index 0000000..cf166e4
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs	
+@@ -0,0 +1,110 @@
++using TMPro;
++using UnityEngine;
++using UnityEngine.UI;
++
++/// <summary>
++/// One row of the object progress window: an icon, a name, and either a price to pay
++/// or a mark that it is already bought. Owns no rules — it reads
++/// <see cref="ProgressionService"/> and hands taps straight back to it.
++///
++/// The window builds these and refreshes them. A row deliberately subscribes to
++/// nothing, so a chapter with fifty objects costs fifty rows and no listeners.
++/// </summary>
++public class HubObjectBarView : MonoBehaviour
++{
++    [SerializeField] TMP_Text _nameLabel;
++    [SerializeField] TMP_Text _costLabel;
++    [SerializeField] Button _upgradeButton;
++
++    [Header("Optional")]
++    [SerializeField] Image _icon;
++    [SerializeField] Image _costCurrencyIcon;
++    [SerializeField] GameObject _costGroup;       // switched off once the object is bought
++    [SerializeField] GameObject _unlockedBadge;   // shown in its place
++
++    HubObjectDef _definition;
++    ProgressionService _progression;
++    Wallet _wallet;
++
++    public HubObjectDef Definition => _definition;
++
++    public void Bind(HubObjectDef definition, ProgressionService progression, Wallet wallet)
++    {
++        _definition = definition;
++        _progression = progression;
++        _wallet = wallet;
++
++        if (_upgradeButton != null)
++        {
++            // Remove first: rebinding a pooled row must not stack a second listener.
++            _upgradeButton.onClick.RemoveListener(TryPurchase);
++            _upgradeButton.onClick.AddListener(TryPurchase);
++        }
++
++        Refresh();
++    }
++
++    /// <summary>Public so the prefab's own button can call it directly if you prefer.</summary>
++    public void TryPurchase()
++    {
++        if (_progression == null || _definition == null) return;
++        if (_progression.IsUnlocked(_definition)) return;
++
++        if (!_progression.TryPurchase(_definition))
++            Debug.Log($"Not enough currency for {_definition.DisplayName}.");
++    }
++
++    public void Refresh()
++    {
++        if (_definition == null) return;
++
++        var unlocked = _progression.IsUnlocked(_definition);
++
++        if (_nameLabel != null) _nameLabel.text = _definition.DisplayName;
++
++        if (_icon != null)
++        {
++            var sprite = RowSprite(unlocked);
++            _icon.sprite = sprite;
++            _icon.enabled = sprite != null;   // no art yet is a blank row, not a white box
++        }
++
++        if (_costGroup != null) _costGroup.SetActive(!unlocked);
++        if (_unlockedBadge != null) _unlockedBadge.SetActive(unlocked);
++        if (_costLabel != null) _costLabel.text = FormatCost();
++
++        var currency = FirstCurrency();
++        if (_costCurrencyIcon != null && currency != null && currency.Icon != null)
++            _costCurrencyIcon.sprite = currency.Icon;
++
++        // A bought row stays on the list as a record of what the player owns,
++        // so the button goes quiet instead of the row disappearing.
++        if (_upgradeButton != null)
++            _upgradeButton.interactable = !unlocked && _wallet.CanAfford(_definition.Cost);
++    }
++
++    Sprite RowSprite(bool unlocked)
++    {
++        if (_definition.Icon != null) return _definition.Icon;
++
++        // No list icon authored yet — borrow the world sprite so the row is not empty.
++        return unlocked ? _definition.UnlockedSprite : _definition.LockedSprite;
++    }
++
++    CurrencyDef FirstCurrency()
++    {
++        var costs = _definition.Cost?.Costs;
++        return costs != null && costs.Length > 0 ? costs[0].Currency : null;
++    }
++
++    string FormatCost()
++    {
++        var costs = _definition.Cost?.Costs;
++        if (costs == null || costs.Length == 0) return "Free";
++
++        var text = "";
++        foreach (var cost in costs)
++            text += (text.Length > 0 ? "  " : "") + cost.Amount;
++        return text;
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs.meta b/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs.meta
+new file mode 100644
+index 0000000..51215ce
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Meta/View/HubObjectBarView.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: c5692b7df2fd413ba2fa518fe56f8eb1
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs b/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs
+new file mode 100644
+index 0000000..d2d5403
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs	
+@@ -0,0 +1,114 @@
++using System.Collections.Generic;
++using UnityEngine;
++
++/// <summary>
++/// The scene progress popup: a row for every object in the chapter, bought and still
++/// to buy, opened from the hub's progress button.
++///
++/// It owns the list. Rows are built once — a chapter's contents never change at
++/// runtime — and refreshed whenever a purchase lands or a balance moves, so this is
++/// the only object listening however long the list gets.
++///
++/// The headline and the progress bar at the top are not handled here: put a
++/// <see cref="ChapterProgressView"/> on them and it fills in the chapter name, the
++/// x/y and the fill, exactly as it already does for the bar in the hub.
++///
++/// Put this component on something that stays active — the Canvas or a holder — and
++/// point <see cref="_window"/> at the panel it should show and hide, or the first tap
++/// arrives before Start has ever run.
++/// </summary>
++public class ObjectProgressWindow : MonoBehaviour
++{
++    [Header("List")]
++    [SerializeField] HubObjectBarView _barPrefab;
++    [Tooltip("The Content object inside the Scroll View. Rows are spawned here.")]
++    [SerializeField] RectTransform _listRoot;
++
++    [Header("Window")]
++    [Tooltip("The panel switched on and off. Left empty, this GameObject is used.")]
++    [SerializeField] GameObject _window;
++    [SerializeField] bool _closedOnStart = true;
++
++    readonly List<HubObjectBarView> _rows = new();
++
++    Wallet _wallet;
++    ProgressionService _progression;
++
++    public bool IsOpen => Window.activeSelf;
++
++    GameObject Window => _window != null ? _window : gameObject;
++
++    void Start()
++    {
++        if (_barPrefab == null || _listRoot == null)
++        {
++            Debug.LogError($"{name}: needs a bar prefab and a list root.", this);
++            enabled = false;
++            return;
++        }
++
++        // Start(), not Awake() — GameBootstrap builds the services in its own Awake,
++        // and Awake order between objects is undefined.
++        _wallet = GameBootstrap.Instance.Wallet;
++        _progression = GameBootstrap.Instance.Progression;
++
++        _progression.ObjectUnlocked += OnObjectUnlocked;
++        _wallet.Changed += OnCurrencyChanged;
++
++        BuildRows();
++        RefreshRows();
++
++        if (_closedOnStart) Close();
++    }
++
++    void OnDestroy()
++    {
++        if (_progression != null) _progression.ObjectUnlocked -= OnObjectUnlocked;
++        if (_wallet != null) _wallet.Changed -= OnCurrencyChanged;
++    }
++
++    /// <summary>Hook these to the progress button and the window's close button.</summary>
++    public void Open()
++    {
++        RefreshRows();   // catch anything that moved while the window was shut
++        Window.SetActive(true);
++    }
++
++    public void Close() => Window.SetActive(false);
++
++    public void Toggle()
++    {
++        if (IsOpen) Close();
++        else Open();
++    }
++
++    void OnObjectUnlocked(HubObjectDef _) => RefreshRows();
++
++    void OnCurrencyChanged(CurrencyDef _) => RefreshRows();
++
++    void BuildRows()
++    {
++        var chapter = _progression.Chapter;
++        if (chapter == null || chapter.Objects == null)
++        {
++            Debug.LogWarning($"{name}: the chapter has no objects, so the list is empty.", this);
++            return;
++        }
++
++        foreach (var definition in chapter.Objects)
++        {
++            if (definition == null) continue;   // an empty slot left in the chapter asset
++
++            var row = Instantiate(_barPrefab, _listRoot);
++            row.name = $"Bar - {definition.name}";
++            row.Bind(definition, _progression, _wallet);
++
++            _rows.Add(row);
++        }
++    }
++
++    void RefreshRows()
++    {
++        foreach (var row in _rows) row.Refresh();
++    }
++}
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs.meta b/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs.meta
+new file mode 100644
+index 0000000..cf895de
+--- /dev/null
++++ b/Cat Solitaire/Assets/Dev/Meta/View/ObjectProgressWindow.cs.meta	
+@@ -0,0 +1,11 @@
++fileFormatVersion: 2
++guid: d301e540990d41d2843fca009a53e541
++MonoImporter:
++  externalObjects: {}
++  serializedVersion: 2
++  defaultReferences: []
++  executionOrder: 0
++  icon: {instanceID: 0}
++  userData: 
++  assetBundleName: 
++  assetBundleVariant: 
+-- 
+2.43.0
+
+
+From f4ba1bfcc3a52a71a3f8b7776ff62f818a8c3c63 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 30 Aug 2026 07:37:24 +0000
+Subject: [PATCH 3/4] Give the chapter and hub object real ids
+
+Both were "0". HubObjectDef.Id is the key the save file stores an unlock
+under, so a second object left on the default would have shared Sofa Cat's
+entry and unlocked with it. Named ids also survive renaming the asset,
+which the file name does not.
+
+Any save made before this shows Sofa Cat as locked again - the profile
+still lists "0". Reset Save on the debug panel clears it.
+---
+ Cat Solitaire/Assets/Dev/Content/Hub Chapter/Chapter 1.asset | 2 +-
+ Cat Solitaire/Assets/Dev/Content/Hub Objects/Sofa Cat.asset  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Cat Solitaire/Assets/Dev/Content/Hub Chapter/Chapter 1.asset b/Cat Solitaire/Assets/Dev/Content/Hub Chapter/Chapter 1.asset
+index 76890b5..ef1eef2 100644
+--- a/Cat Solitaire/Assets/Dev/Content/Hub Chapter/Chapter 1.asset	
++++ b/Cat Solitaire/Assets/Dev/Content/Hub Chapter/Chapter 1.asset	
+@@ -12,7 +12,7 @@ MonoBehaviour:
+   m_Script: {fileID: 11500000, guid: a1c4f27d3b6e8f4409d15c72b8e3a06d, type: 3}
+   m_Name: Chapter 1
+   m_EditorClassIdentifier: Meta::HubChapterDef
+-  Id: 0
++  Id: chapter-1
+   DisplayName: Grandma's House
+   Objects:
+   - {fileID: 11400000, guid: 343e3ef385e66cf4eb5d1ba60ccebe9e, type: 2}
+diff --git a/Cat Solitaire/Assets/Dev/Content/Hub Objects/Sofa Cat.asset b/Cat Solitaire/Assets/Dev/Content/Hub Objects/Sofa Cat.asset
+index 69d6285..b3d045b 100644
+--- a/Cat Solitaire/Assets/Dev/Content/Hub Objects/Sofa Cat.asset	
++++ b/Cat Solitaire/Assets/Dev/Content/Hub Objects/Sofa Cat.asset	
+@@ -12,7 +12,7 @@ MonoBehaviour:
+   m_Script: {fileID: 11500000, guid: 5282f80593507b643a353ef2b1bd8033, type: 3}
+   m_Name: Sofa Cat
+   m_EditorClassIdentifier: Meta::HubObjectDef
+-  Id: 0
++  Id: sofa-cat
+   DisplayName: Sofa Cat
+   Cost:
+     Costs:
+-- 
+2.43.0
+
+
+From 1b2ea896b45ab14377ff20f2b51f9647776fdcf9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 30 Aug 2026 07:41:41 +0000
+Subject: [PATCH 4/4] Add the chapter completion reward
+
+The chest at the end of the progress bar had nothing behind it: the chapter
+carried no reward and ChapterCompleted fired with nobody listening.
+
+- HubChapterDef gains CompletionRewards, paid out through the wallet like
+  any other grant.
+- ProgressionService.TryClaimChapterReward pays it once. Nothing claims it
+  automatically - the player taps the chest, so the moment can be given a
+  celebration later.
+- PlayerProfile remembers claims by chapter id, so renaming an asset cannot
+  hand the chest out a second time. Older saves simply have none claimed.
+- GameBootstrap saves on ChapterRewardClaimed too: a chapter whose reward
+  is empty moves no money, and would otherwise leave the claim unsaved.
+- ChapterProgressView takes an optional chest button, interactable only
+  while the reward is unclaimed and the chapter is done.
+
+Three tests cover it: no claim before the chapter is finished, a claim that
+pays and reaches the profile, and a second claim that pays nothing.
+---
+ .../Assets/Dev/Core/Save/PlayerProfile.cs     |  1 +
+ .../Assets/Dev/Meta/App/GameBootstrap.cs      |  1 +
+ .../Assets/Dev/Meta/Data/HubChapterDef.cs     |  3 ++
+ .../Meta/Progression/ProgressionService.cs    | 23 +++++++++
+ .../Dev/Meta/View/ChapterProgressView.cs      | 17 ++++++-
+ .../Dev/Tests/ProgressionServiceTests.cs      | 48 +++++++++++++++++++
+ 6 files changed, 92 insertions(+), 1 deletion(-)
+
+diff --git a/Cat Solitaire/Assets/Dev/Core/Save/PlayerProfile.cs b/Cat Solitaire/Assets/Dev/Core/Save/PlayerProfile.cs
+index 80eecb3..fa49db6 100644
+--- a/Cat Solitaire/Assets/Dev/Core/Save/PlayerProfile.cs	
++++ b/Cat Solitaire/Assets/Dev/Core/Save/PlayerProfile.cs	
+@@ -10,6 +10,7 @@ public class PlayerProfile
+     public int SaveVersion = 1;
+     public List<CurrencyEntry> Wallet = new();
+     public List<string> UnlockedObjectIds = new();
++    public List<string> ClaimedChapterRewardIds = new();
+     public int LevelsCompleted;
+ 
+     public int GetAmount(string id) => Wallet.Find(e => e.Id == id)?.Amount ?? 0;
+diff --git a/Cat Solitaire/Assets/Dev/Meta/App/GameBootstrap.cs b/Cat Solitaire/Assets/Dev/Meta/App/GameBootstrap.cs
+index beb05d9..2678233 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/App/GameBootstrap.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/App/GameBootstrap.cs	
+@@ -29,6 +29,7 @@ public class GameBootstrap : MonoBehaviour
+         // Anything that changes the profile writes it back.
+         Wallet.Changed += _ => Save();
+         Progression.ObjectUnlocked += _ => Save();
++        Progression.ChapterRewardClaimed += Save;   // a reward of nothing still has to stay claimed
+     }
+ 
+     public void Save()
+diff --git a/Cat Solitaire/Assets/Dev/Meta/Data/HubChapterDef.cs b/Cat Solitaire/Assets/Dev/Meta/Data/HubChapterDef.cs
+index 1393bad..b5036f5 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/Data/HubChapterDef.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/Data/HubChapterDef.cs	
+@@ -11,4 +11,7 @@ public class HubChapterDef : ScriptableObject
+     public string DisplayName;
+     public HubObjectDef[] Objects;
+     public int RequiredUnlocks;
++
++    [Tooltip("The chest at the end of the progress bar. Paid out once, when the player claims it.")]
++    public CurrencyAmount[] CompletionRewards;
+ }
+diff --git a/Cat Solitaire/Assets/Dev/Meta/Progression/ProgressionService.cs b/Cat Solitaire/Assets/Dev/Meta/Progression/ProgressionService.cs
+index 32ef3bf..bc5bae8 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/Progression/ProgressionService.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/Progression/ProgressionService.cs	
+@@ -10,6 +10,7 @@ public class ProgressionService
+ 
+     public event Action<HubObjectDef> ObjectUnlocked;
+     public event Action ChapterCompleted;
++    public event Action ChapterRewardClaimed;
+ 
+     public ProgressionService(PlayerProfile p, Wallet w, HubChapterDef c)
+     { _profile = p; _wallet = w; _chapter = c; }
+@@ -22,6 +23,11 @@ public class ProgressionService
+     public int  UnlockedCount => _chapter.Objects.Count(IsUnlocked);
+     public bool IsChapterComplete => UnlockedCount >= _chapter.RequiredUnlocks;
+ 
++    // Keyed by chapter id, not by asset name, so renaming the asset cannot hand the
++    // chest out a second time.
++    public bool IsChapterRewardClaimed => _profile.ClaimedChapterRewardIds.Contains(_chapter.Id);
++    public bool CanClaimChapterReward => IsChapterComplete && !IsChapterRewardClaimed;
++
+     public bool TryPurchase(HubObjectDef o)
+     {
+         if (!CanPurchase(o) || !_wallet.TrySpend(o.Cost)) return false;
+@@ -34,4 +40,21 @@ public class ProgressionService
+         if (!wasComplete && IsChapterComplete) ChapterCompleted?.Invoke();
+         return true;
+     }
++
++    /// <summary>
++    /// Pays out the chapter's completion reward, once and only once. Nothing claims
++    /// it automatically — the player taps the chest, so the moment can be celebrated.
++    /// </summary>
++    public bool TryClaimChapterReward()
++    {
++        if (!CanClaimChapterReward) return false;
++
++        // Marked before the money moves: a save triggered by the grant must already
++        // see the chest as claimed.
++        _profile.ClaimedChapterRewardIds.Add(_chapter.Id);
++        _wallet.Grant(_chapter.CompletionRewards);
++
++        ChapterRewardClaimed?.Invoke();
++        return true;
++    }
+ }
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/ChapterProgressView.cs b/Cat Solitaire/Assets/Dev/Meta/View/ChapterProgressView.cs
+index 16878c6..d23c5cc 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/View/ChapterProgressView.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/View/ChapterProgressView.cs	
+@@ -10,6 +10,8 @@ public class ChapterProgressView : MonoBehaviour
+     [Header("Optional")]
+     [SerializeField] Slider _progressFill;
+     [SerializeField] GameObject _completeBadge;
++    [Tooltip("The chest at the end of the bar. Hook its OnClick to ClaimReward.")]
++    [SerializeField] Button _claimButton;
+ 
+     ProgressionService _progression;
+ 
+@@ -17,12 +19,22 @@ public class ChapterProgressView : MonoBehaviour
+     {
+         _progression = GameBootstrap.Instance.Progression;
+         _progression.ObjectUnlocked += OnObjectUnlocked;
++        _progression.ChapterRewardClaimed += Refresh;
+         Refresh();
+     }
+ 
+     void OnDestroy()
+     {
+-        if (_progression != null) _progression.ObjectUnlocked -= OnObjectUnlocked;
++        if (_progression == null) return;
++
++        _progression.ObjectUnlocked -= OnObjectUnlocked;
++        _progression.ChapterRewardClaimed -= Refresh;
++    }
++
++    /// <summary>Hook the chest button's OnClick here. Pays out once, then goes quiet.</summary>
++    public void ClaimReward()
++    {
++        if (_progression != null) _progression.TryClaimChapterReward();
+     }
+ 
+     void OnObjectUnlocked(HubObjectDef _) => Refresh();
+@@ -39,5 +51,8 @@ public class ChapterProgressView : MonoBehaviour
+         if (_progressLabel != null) _progressLabel.text = $"{unlocked}/{required}";
+         if (_progressFill != null) _progressFill.value = Mathf.Clamp01((float)unlocked / required);
+         if (_completeBadge != null) _completeBadge.SetActive(_progression.IsChapterComplete);
++
++        // The chest stays on the bar once claimed, as the thing the goal was for.
++        if (_claimButton != null) _claimButton.interactable = _progression.CanClaimChapterReward;
+     }
+ }
+diff --git a/Cat Solitaire/Assets/Dev/Tests/ProgressionServiceTests.cs b/Cat Solitaire/Assets/Dev/Tests/ProgressionServiceTests.cs
+index 6762921..af85c0c 100644
+--- a/Cat Solitaire/Assets/Dev/Tests/ProgressionServiceTests.cs	
++++ b/Cat Solitaire/Assets/Dev/Tests/ProgressionServiceTests.cs	
+@@ -24,6 +24,7 @@ public class ProgressionServiceTests
+         _chapter.Id = "chapter1";
+         _chapter.Objects = new[] { _a, _b, _c };
+         _chapter.RequiredUnlocks = 2;   // buy 2 of 3 to finish the chapter
++        _chapter.CompletionRewards = new[] { new CurrencyAmount { Currency = _stars, Amount = 50 } };
+ 
+         _profile = new PlayerProfile();
+         _wallet = new Wallet(_profile);
+@@ -84,8 +85,55 @@ public class ProgressionServiceTests
+         Assert.AreEqual(1, fireCount, "Extra purchases must not re-fire completion.");
+     }
+ 
++    [Test]
++    public void ChapterReward_CannotBeClaimedBeforeTheChapterIsComplete()
++    {
++        GrantStars(10);
++        _progression.TryPurchase(_a);   // one of the two the chapter asks for
++
++        Assert.IsFalse(_progression.CanClaimChapterReward);
++        Assert.IsFalse(_progression.TryClaimChapterReward());
++        Assert.AreEqual(0, _wallet.Get(_stars));
++    }
++
++    [Test]
++    public void ClaimingTheChapterReward_PaysOutAndIsRemembered()
++    {
++        CompleteTheChapter();
++
++        Assert.IsTrue(_progression.CanClaimChapterReward);
++        Assert.IsTrue(_progression.TryClaimChapterReward());
++
++        Assert.AreEqual(50, _wallet.Get(_stars));
++        Assert.IsTrue(_progression.IsChapterRewardClaimed);
++        CollectionAssert.Contains(_profile.ClaimedChapterRewardIds, "chapter1",
++            "The claim has to reach the profile, or it is forgotten on the next launch.");
++    }
++
++    [Test]
++    public void TheChapterReward_IsOnlyEverPaidOnce()
++    {
++        CompleteTheChapter();
++
++        var fireCount = 0;
++        _progression.ChapterRewardClaimed += () => fireCount++;
++        _progression.TryClaimChapterReward();
++
++        Assert.IsFalse(_progression.TryClaimChapterReward());
++        Assert.AreEqual(50, _wallet.Get(_stars), "The second claim must be rejected before granting.");
++        Assert.AreEqual(1, fireCount);
++    }
++
+     // ---- helpers ----
+ 
++    void CompleteTheChapter()
++    {
++        GrantStars(20);
++        _progression.TryPurchase(_a);
++        _progression.TryPurchase(_b);
++    }
++
++
+     void GrantStars(int amount)
+         => _wallet.Grant(new[] { new CurrencyAmount { Currency = _stars, Amount = amount } });
+ 
+-- 
+2.43.0
+

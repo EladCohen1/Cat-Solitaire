@@ -23,4 +23,4 @@ MonoBehaviour:
   - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
     Amount: 1
   LoseRewards: []
-  RuleData: {fileID: 0}
+  RuleData: {fileID: 11400000, guid: 0a160da613d9492b98ba72e1eb109337, type: 2}

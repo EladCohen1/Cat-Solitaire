@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5282f80593507b643a353ef2b1bd8033, type: 3}
   m_Name: Sofa Cat
   m_EditorClassIdentifier: Meta::HubObjectDef
-  Id: 0
+  Id: sofa-cat
   DisplayName: Sofa Cat
   Cost:
     Costs:

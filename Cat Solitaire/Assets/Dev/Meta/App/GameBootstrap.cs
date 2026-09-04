@@ -29,6 +29,7 @@ public class GameBootstrap : MonoBehaviour
         // Anything that changes the profile writes it back.
         Wallet.Changed += _ => Save();
         Progression.ObjectUnlocked += _ => Save();
+        Progression.ChapterRewardClaimed += Save;   // a reward of nothing still has to stay claimed
     }
 
     public void Save()

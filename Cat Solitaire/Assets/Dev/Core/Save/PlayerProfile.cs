@@ -10,6 +10,7 @@ public class PlayerProfile
     public int SaveVersion = 1;
     public List<CurrencyEntry> Wallet = new();
     public List<string> UnlockedObjectIds = new();
+    public List<string> ClaimedChapterRewardIds = new();
     public int LevelsCompleted;
 
     public int GetAmount(string id) => Wallet.Find(e => e.Id == id)?.Amount ?? 0;

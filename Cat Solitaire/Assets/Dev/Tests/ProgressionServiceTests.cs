@@ -24,6 +24,7 @@ public class ProgressionServiceTests
         _chapter.Id = "chapter1";
         _chapter.Objects = new[] { _a, _b, _c };
         _chapter.RequiredUnlocks = 2;   // buy 2 of 3 to finish the chapter
+        _chapter.CompletionRewards = new[] { new CurrencyAmount { Currency = _stars, Amount = 50 } };
 
         _profile = new PlayerProfile();
         _wallet = new Wallet(_profile);
@@ -84,7 +85,54 @@ public class ProgressionServiceTests
         Assert.AreEqual(1, fireCount, "Extra purchases must not re-fire completion.");
     }
 
+    [Test]
+    public void ChapterReward_CannotBeClaimedBeforeTheChapterIsComplete()
+    {
+        GrantStars(10);
+        _progression.TryPurchase(_a);   // one of the two the chapter asks for
+
+        Assert.IsFalse(_progression.CanClaimChapterReward);
+        Assert.IsFalse(_progression.TryClaimChapterReward());
+        Assert.AreEqual(0, _wallet.Get(_stars));
+    }
+
+    [Test]
+    public void ClaimingTheChapterReward_PaysOutAndIsRemembered()
+    {
+        CompleteTheChapter();
+
+        Assert.IsTrue(_progression.CanClaimChapterReward);
+        Assert.IsTrue(_progression.TryClaimChapterReward());
+
+        Assert.AreEqual(50, _wallet.Get(_stars));
+        Assert.IsTrue(_progression.IsChapterRewardClaimed);
+        CollectionAssert.Contains(_profile.ClaimedChapterRewardIds, "chapter1",
+            "The claim has to reach the profile, or it is forgotten on the next launch.");
+    }
+
+    [Test]
+    public void TheChapterReward_IsOnlyEverPaidOnce()
+    {
+        CompleteTheChapter();
+
+        var fireCount = 0;
+        _progression.ChapterRewardClaimed += () => fireCount++;
+        _progression.TryClaimChapterReward();
+
+        Assert.IsFalse(_progression.TryClaimChapterReward());
+        Assert.AreEqual(50, _wallet.Get(_stars), "The second claim must be rejected before granting.");
+        Assert.AreEqual(1, fireCount);
+    }
+
     // ---- helpers ----
+
+    void CompleteTheChapter()
+    {
+        GrantStars(20);
+        _progression.TryPurchase(_a);
+        _progression.TryPurchase(_b);
+    }
+
 
     void GrantStars(int amount)
         => _wallet.Grant(new[] { new CurrencyAmount { Currency = _stars, Amount = amount } });

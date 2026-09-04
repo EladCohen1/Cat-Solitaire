@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: Stars
   m_EditorClassIdentifier: AsemblyDEF::CurrencyDef
   Id: stars
-  DisplayName: 
+  DisplayName: Pawctory
   Icon: {fileID: 0}

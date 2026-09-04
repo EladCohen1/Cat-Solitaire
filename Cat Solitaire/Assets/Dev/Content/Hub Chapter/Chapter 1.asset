@@ -16,4 +16,6 @@ MonoBehaviour:
   DisplayName: Grandma's House
   Objects:
   - {fileID: 11400000, guid: 343e3ef385e66cf4eb5d1ba60ccebe9e, type: 2}
+  - {fileID: 11400000, guid: 343e3ef385e66cf4eb5d1ba60ccebe9e, type: 2}
   RequiredUnlocks: 0
+  CompletionRewards: []

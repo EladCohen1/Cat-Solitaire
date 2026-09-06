@@ -2,7 +2,9 @@
     "name": "Solitaire",
     "rootNamespace": "",
     "references": [
-        "Core"
+        "Core",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

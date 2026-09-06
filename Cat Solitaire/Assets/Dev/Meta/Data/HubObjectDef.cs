@@ -11,4 +11,7 @@ public class HubObjectDef : ScriptableObject
     public string DisplayName;
     public Price Cost;
     public Sprite LockedSprite, UnlockedSprite;
+
+    [Tooltip("Small portrait for the progress window's list. Falls back to the world sprite when empty.")]
+    public Sprite Icon;
 }

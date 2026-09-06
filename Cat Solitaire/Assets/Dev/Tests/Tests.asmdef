@@ -4,6 +4,7 @@
     "references": [
         "Core",
         "Meta",
+        "Solitaire",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

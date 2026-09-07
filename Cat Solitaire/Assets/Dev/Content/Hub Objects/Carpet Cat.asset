@@ -10,11 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5282f80593507b643a353ef2b1bd8033, type: 3}
-  m_Name: New Hub Object Def
+  m_Name: Carpet Cat
   m_EditorClassIdentifier: Meta::HubObjectDef
-  Id: 
-  DisplayName: 
+  Id: sofa-cat
+  DisplayName: Sofa Cat
   Cost:
-    Costs: []
-  LockedSprite: {fileID: 0}
+    Costs:
+    - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+      Amount: 1
+  LockedSprite: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   UnlockedSprite: {fileID: 0}

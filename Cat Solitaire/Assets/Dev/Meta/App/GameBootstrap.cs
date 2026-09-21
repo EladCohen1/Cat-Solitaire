@@ -5,11 +5,13 @@ public class GameBootstrap : MonoBehaviour
     public static GameBootstrap Instance { get; private set; }
 
     [SerializeField] HubChapterDef _startingChapter;
+    [SerializeField] LevelSequenceDef _levels;
 
     PlayerProfile _profile;
 
     public Wallet Wallet { get; private set; }
     public ProgressionService Progression { get; private set; }
+    public LevelLadder Ladder { get; private set; }
 
     void Awake()
     {
@@ -21,6 +23,7 @@ public class GameBootstrap : MonoBehaviour
         _profile = SaveService.Load();
         Wallet = new Wallet(_profile);
         Progression = new ProgressionService(_profile, Wallet, _startingChapter);
+        Ladder = new LevelLadder(_profile, _levels);
 
         // Anything that changes the profile writes it back.
         Wallet.Changed += _ => Save();
@@ -37,7 +40,7 @@ public class GameBootstrap : MonoBehaviour
     {
         if (_profile == null) return;
 
-        _profile.LevelsCompleted++;
+        Ladder.RecordWin();   // the win count is the ladder's cursor
         Save();
     }
 

@@ -32,7 +32,13 @@ public class GameFlow : MonoBehaviour
         Instance = this;
     }
 
-    public void PlayLevel(LevelDef level)
+    public void PlayLevel(LevelDef level) => PlayLevel(level, null);
+
+    /// <param name="wager">
+    /// The rung of the reward bar the player picked. Null plays at the level's own
+    /// entry cost for the usual payout.
+    /// </param>
+    public void PlayLevel(LevelDef level, WagerTier wager)
     {
         if (level == null)
         {
@@ -42,22 +48,33 @@ public class GameFlow : MonoBehaviour
 
         if (IsLevelRunning) return;
 
+        var price = PriceOf(level, wager);
+
         var wallet = GameBootstrap.Instance.Wallet;
-        if (!wallet.CanAfford(level.EntryCost))
+        if (!wallet.CanAfford(price))
         {
-            EntryCostRejected?.Invoke(level.EntryCost);
+            EntryCostRejected?.Invoke(price);
             return;
         }
 
-        StartCoroutine(RunLevel(level));
+        StartCoroutine(RunLevel(level, wager));
     }
 
-    IEnumerator RunLevel(LevelDef level)
+    /// <summary>A wager replaces the level's entry cost rather than adding to it.</summary>
+    public static Price PriceOf(LevelDef level, WagerTier wager) =>
+        wager != null ? wager.Cost : level.EntryCost;
+
+    /// <summary>What a win pays at this rung — the rung's own numbers, or the level's.</summary>
+    public static CurrencyAmount[] WinRewardsOf(LevelDef level, WagerTier wager) =>
+        WagerLadderDef.RewardsOf(wager, level);
+
+    IEnumerator RunLevel(LevelDef level, WagerTier wager)
     {
         IsLevelRunning = true;
         var wallet = GameBootstrap.Instance.Wallet;
+        var price = PriceOf(level, wager);
 
-        if (!wallet.TrySpend(level.EntryCost))
+        if (!wallet.TrySpend(price))
         {
             IsLevelRunning = false;
             yield break;
@@ -73,7 +90,7 @@ public class GameFlow : MonoBehaviour
         {
             // Never keep the player's money for a level we failed to start.
             Debug.LogError($"No ILevelRunner found in scene '{_levelSceneName}'. Refunding entry cost.", this);
-            wallet.Grant(level.EntryCost?.Costs);
+            wallet.Grant(price?.Costs);
 
             yield return UnloadAndRestore(levelScene, hiddenHubRoots);
             IsLevelRunning = false;
@@ -86,7 +103,7 @@ public class GameFlow : MonoBehaviour
 
         while (!finished) yield return null;
 
-        var rewards = ResolveRewards(level, result.Outcome);
+        var rewards = ResolveRewards(level, wager, result.Outcome);
         wallet.Grant(rewards);
 
         if (result.Outcome == LevelOutcome.Win)
@@ -98,11 +115,11 @@ public class GameFlow : MonoBehaviour
         LevelFinished?.Invoke(level, result, rewards);
     }
 
-    static CurrencyAmount[] ResolveRewards(LevelDef level, LevelOutcome outcome)
+    static CurrencyAmount[] ResolveRewards(LevelDef level, WagerTier wager, LevelOutcome outcome)
     {
         switch (outcome)
         {
-            case LevelOutcome.Win: return level.WinRewards;
+            case LevelOutcome.Win: return WinRewardsOf(level, wager);
             case LevelOutcome.Lose: return level.LoseRewards;
             default: return Array.Empty<CurrencyAmount>();   // quitting pays nothing
         }

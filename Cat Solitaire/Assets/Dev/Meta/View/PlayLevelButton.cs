@@ -17,6 +17,8 @@ public class PlayLevelButton : MonoBehaviour
     [SerializeField] LevelDef _level;
     [SerializeField] TMP_Text _costLabel;
     [SerializeField] TMP_Text _levelNumberLabel;
+    [Tooltip("Assign it and the button opens this window first. Empty starts the level straight away.")]
+    [SerializeField] LevelPriceInfoWindow _infoWindow;
 
     Wallet _wallet;
     LevelLadder _ladder;
@@ -51,7 +53,10 @@ public class PlayLevelButton : MonoBehaviour
     public void Play()
     {
         var level = Level;
-        if (level != null) GameFlow.Instance.PlayLevel(level);
+        if (level == null) return;
+
+        if (_infoWindow != null) _infoWindow.Open(level);
+        else GameFlow.Instance.PlayLevel(level);
     }
 
     void OnCurrencyChanged(CurrencyDef _) => Refresh();

@@ -22,3 +22,4 @@ MonoBehaviour:
     Amount: 1
   LoseRewards: []
   RuleData: {fileID: 11400000, guid: 9a91f9449d54486f96469f35b6afc3e7, type: 2}
+  Wagers: {fileID: 11400000, guid: 276e72defb6449f08b2a63cc7ec3ae7b, type: 2}

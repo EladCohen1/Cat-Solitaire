@@ -1,0 +1,38 @@
+From af8d509a62a59b6312480e2b893ebab167190afe Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 23 Sep 2026 17:04:27 +0000
+Subject: [PATCH] Snap the bet bar back off a locked rung
+
+Your plus and minus buttons drive RewardBar directly, so the bar can slide
+onto a rung the window then refuses. The window was returning without
+moving it back, leaving the bar showing one rung and the price another.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QrRago1qqYWQbUSsLQBNqH
+---
+ .../Assets/Dev/Meta/View/LevelPriceInfoWindow.cs         | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/Cat Solitaire/Assets/Dev/Meta/View/LevelPriceInfoWindow.cs b/Cat Solitaire/Assets/Dev/Meta/View/LevelPriceInfoWindow.cs
+index f1b606e..12f76bf 100644
+--- a/Cat Solitaire/Assets/Dev/Meta/View/LevelPriceInfoWindow.cs	
++++ b/Cat Solitaire/Assets/Dev/Meta/View/LevelPriceInfoWindow.cs	
+@@ -102,8 +102,13 @@ public class LevelPriceInfoWindow : MonoBehaviour
+     {
+         var wanted = Mathf.Clamp(tier, 0, TierCount - 1);
+ 
+-        // A rung the player has not reached yet is scenery, not a choice.
+-        if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber)) return;
++        // A rung the player has not reached yet is scenery, not a choice. The bar may
++        // already have slid onto it under its own steam, so put it back.
++        if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber))
++        {
++            if (_bar != null) _bar.SetValue(_tier);
++            return;
++        }
+ 
+         _tier = wanted;
+         if (_bar != null) _bar.SetValue(_tier);
+-- 
+2.43.0
+

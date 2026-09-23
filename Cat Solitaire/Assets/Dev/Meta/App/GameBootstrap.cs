@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// The composition root: the single place where the profile is loaded and the
-/// services are constructed. Everything else receives them from here.
-/// </summary>
 public class GameBootstrap : MonoBehaviour
 {
     public static GameBootstrap Instance { get; private set; }

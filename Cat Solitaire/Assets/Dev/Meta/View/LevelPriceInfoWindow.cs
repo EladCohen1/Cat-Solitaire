@@ -102,8 +102,13 @@ public class LevelPriceInfoWindow : MonoBehaviour
     {
         var wanted = Mathf.Clamp(tier, 0, TierCount - 1);
 
-        // A rung the player has not reached yet is scenery, not a choice.
-        if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber)) return;
+        // A rung the player has not reached yet is scenery, not a choice. The bar may
+        // already have slid onto it under its own steam, so put it back.
+        if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber))
+        {
+            if (_bar != null) _bar.SetValue(_tier);
+            return;
+        }
 
         _tier = wanted;
         if (_bar != null) _bar.SetValue(_tier);

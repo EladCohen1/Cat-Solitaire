@@ -24,11 +24,10 @@ public class GameBootstrap : MonoBehaviour
         Wallet = new Wallet(_profile);
         Progression = new ProgressionService(_profile, Wallet, _startingChapter);
         Ladder = new LevelLadder(_profile, _levels);
-
-        // Anything that changes the profile writes it back.
+        
         Wallet.Changed += _ => Save();
         Progression.ObjectUnlocked += _ => Save();
-        Progression.ChapterRewardClaimed += Save;   // a reward of nothing still has to stay claimed
+        Progression.ChapterRewardClaimed += Save; 
     }
 
     public void Save()
@@ -40,13 +39,13 @@ public class GameBootstrap : MonoBehaviour
     {
         if (_profile == null) return;
 
-        Ladder.RecordWin();   // the win count is the ladder's cursor
+        Ladder.RecordWin();  
         Save();
     }
 
     void OnApplicationPause(bool paused)
     {
-        if (paused) Save();   // on mobile this is the reliable one, not OnApplicationQuit
+        if (paused) Save();  
     }
 
     void OnApplicationQuit() => Save();

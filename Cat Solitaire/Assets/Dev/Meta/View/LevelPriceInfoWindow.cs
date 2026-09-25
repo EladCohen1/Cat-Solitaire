@@ -69,7 +69,6 @@ public class LevelPriceInfoWindow : MonoBehaviour
         if (_bar != null) _bar.Changed -= OnBarMoved;
     }
 
-    /// <summary>Opens on a level. The bet always starts back at the bottom rung.</summary>
     public void Open(LevelDef level)
     {
         if (level == null)
@@ -83,8 +82,8 @@ public class LevelPriceInfoWindow : MonoBehaviour
 
         if (_bar != null)
         {
-            _bar.Configure(0, Mathf.Max(0, TierCount - 1));
-            _bar.SetValue(0);
+            _bar.Configure(1, Mathf.Max(1, TierCount));
+            _bar.SetValue(1);
         }
 
         Refresh();
@@ -92,8 +91,7 @@ public class LevelPriceInfoWindow : MonoBehaviour
     }
 
     public void Close() => Window.SetActive(false);
-
-    /// <summary>Hook the + and − buttons here, or let the window wire them itself.</summary>
+    
     public void Raise() => SelectTier(_tier + 1);
 
     public void Lower() => SelectTier(_tier - 1);
@@ -101,9 +99,7 @@ public class LevelPriceInfoWindow : MonoBehaviour
     public void SelectTier(int tier)
     {
         var wanted = Mathf.Clamp(tier, 0, TierCount - 1);
-
-        // A rung the player has not reached yet is scenery, not a choice. The bar may
-        // already have slid onto it under its own steam, so put it back.
+        
         if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber))
         {
             if (_bar != null) _bar.SetValue(_tier);
@@ -115,14 +111,11 @@ public class LevelPriceInfoWindow : MonoBehaviour
 
         Refresh();
     }
-
-    /// <summary>Hook the play button here.</summary>
+    
     public void Play()
     {
         if (_level == null) return;
-
-        // Closed first: GameFlow switches the hub off a frame later, and a window
-        // still on screen would go down with it mid-fade.
+        
         var tier = CurrentTier;
         Close();
         GameFlow.Instance.PlayLevel(_level, tier);

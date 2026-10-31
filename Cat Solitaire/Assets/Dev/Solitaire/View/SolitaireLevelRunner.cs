@@ -182,13 +182,23 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     {
         for (var i = 0; i < _cardViews.Length; i++)
         {
-            if (_game.IsCleared(i)) _cardViews[i].Hide();
-            else _cardViews[i].Show(_game.CardAt(i), faceUp: true, _game.IsPlayable(i), _game.IsBlocked(i));
+            if (_game.IsCleared(i))
+            {
+                _cardViews[i].Hide();
+                continue;
+            }
+
+            // Tri-peaks deals the peaks face down: a card turns over the moment the
+            // last card lying on it is taken, which is the same test that decides
+            // whether it can be played at all.
+            var blocked = _game.IsBlocked(i);
+            _cardViews[i].Show(_game.CardAt(i), faceUp: !blocked, playable: _game.IsPlayable(i), blocked: blocked);
         }
 
         _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
         _wasteView.Freeze();
 
+        // Face down, so what the card carries never shows — the draw pile is a back.
         if (_game.StockRemaining > 0)
             _stockView.Show(_game.Active, faceUp: false, playable: false, blocked: false);
         else

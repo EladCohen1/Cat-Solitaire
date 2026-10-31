@@ -6,7 +6,13 @@ using UnityEngine.EventSystems;
 /// One card in the world: the card mesh with the atlas material on it. Picking a
 /// face is two floats on the shader.
 ///
-/// Each card gets its own copy of the material. A MaterialPropertyBlock would be
+/// Card.fbx carries two material slots — CardFront on the side you read and CardBack
+/// on the other. Only the front is ever written: the back art is whatever CardBack
+/// was authored with, and a face-down card is simply a card turned around. Writing a
+/// back cell into the front material would leave the mesh's own back side showing
+/// through from behind and give the card two backs.
+///
+/// Each card gets its own copies of both materials. A MaterialPropertyBlock would be
 /// cheaper, but Shader Graph shaders under URP are SRP Batcher compatible, which
 /// keeps exposed properties in the per-material constant buffer and ignores block
 /// overrides entirely — every card would show whatever the shared material says.
@@ -28,12 +34,23 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     [SerializeField] int _columns = 8;
     [SerializeField] int _rows = 8;
 
-    [Tooltip("Cell the card back sits in. The rest follow it: 2 up to Ace, suit after suit.")]
+    [Tooltip("Cell the card back sits in. The rest follow it: 2 up to Ace, suit after suit. " +
+             "Only used on a mesh with no back side of its own.")]
     [SerializeField] int _backTile;
 
     [Tooltip("How many suits the atlas actually holds. While only one is drawn, every " +
              "suit borrows it — the rules do not care about suit, only the art does.")]
     [SerializeField, Min(1)] int _suitsInAtlas = 1;
+
+    [Header("Materials")]
+    [Tooltip("Material slot that carries the face. Card.fbx has two, CardFront and " +
+             "CardBack, and the face must be written to the right one — slot 0 is " +
+             "whichever the mesh happens to list first.")]
+    [SerializeField] string _frontMaterialName = "CardFront";
+
+    [Tooltip("Leave at -1 to find the front slot by name. Set an index only if the " +
+             "material names change.")]
+    [SerializeField] int _frontMaterialSlot = -1;
 
     [Header("Shader")]
     [SerializeField] string _tileXProperty = "_Tile_X";
@@ -44,8 +61,13 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     [SerializeField] bool _normalizeTile;
 
     [Tooltip("On if the shader counts rows up from the bottom of the texture. SHDR_Cards " +
-             "counts down from the top, which is how the atlas is drawn.")]
+             "flips rows itself, so this stays off — the atlas is read from the top down.")]
     [SerializeField] bool _countRowsFromBottom;
+
+    [Header("Face down")]
+    [Tooltip("Turned this far, the mesh's back side faces the camera. Half a turn about " +
+             "Y for a card standing up to the camera.")]
+    [SerializeField] Vector3 _faceDownRotation = new Vector3(0f, 180f, 0f);
 
     [Header("Look")]
     [SerializeField] Color _faceTint = Color.white;
@@ -61,7 +83,12 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     /// <summary>Which tableau slot this card came from, or -1 for the stock and waste piles.</summary>
     public int Slot { get; private set; } = -1;
 
-    Material _material;
+    /// <summary>Which way the card is turned. A flip animation can read this.</summary>
+    public bool FaceUp { get; private set; } = true;
+
+    Material[] _materials;   // our copies, ours to destroy
+    Material _front;
+    bool _hasBackSide;
 
     void Reset() => FindParts();
 
@@ -75,25 +102,84 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        // Asking for .material rather than .sharedMaterial is what makes the copy.
-        _material = _renderer.material;
+        // Asking for .materials rather than .sharedMaterials is what makes the copies,
+        // and the renderer goes on using them, so every card gets its own set.
+        _materials = _renderer.materials;
+
+        if (_materials.Length == 0)
+        {
+            Debug.LogError($"{name}: the card mesh has no material on it.", this);
+            return;
+        }
+
+        _hasBackSide = _materials.Length > 1;
+        _front = _materials[FrontSlot()];
+    }
+
+    /// <summary>
+    /// Which material slot the readable side of the card is on. Slot order comes from
+    /// the mesh, so it is found by name rather than assumed.
+    /// </summary>
+    int FrontSlot()
+    {
+        if (_frontMaterialSlot >= 0)
+            return Mathf.Clamp(_frontMaterialSlot, 0, _materials.Length - 1);
+
+        if (!string.IsNullOrEmpty(_frontMaterialName))
+        {
+            // Copies are named "CardFront (Instance)", hence StartsWith.
+            for (var i = 0; i < _materials.Length; i++)
+                if (_materials[i] != null &&
+                    _materials[i].name.StartsWith(_frontMaterialName, StringComparison.OrdinalIgnoreCase))
+                    return i;
+
+            if (_hasBackSide)
+                Debug.LogWarning($"{name}: no material slot named '{_frontMaterialName}' — writing the " +
+                                 "card face to the first slot, which may be the back of the card.", this);
+        }
+
+        return 0;
     }
 
     void FindParts()
     {
-        if (_renderer == null) _renderer = GetComponentInChildren<MeshRenderer>();
+        // A renderer with no mesh under it draws nothing, so skip past one to the
+        // renderer that actually shows the card.
+        if (_renderer == null) _renderer = FindDrawnRenderer();
         if (_collider == null) _collider = GetComponentInChildren<Collider>();
+    }
+
+    MeshRenderer FindDrawnRenderer()
+    {
+        var candidates = GetComponentsInChildren<MeshRenderer>(includeInactive: true);
+
+        foreach (var candidate in candidates)
+        {
+            var filter = candidate.GetComponent<MeshFilter>();
+            if (filter != null && filter.sharedMesh != null) return candidate;
+        }
+
+        return candidates.Length > 0 ? candidates[0] : null;
     }
 
     public void Bind(int slot) => Slot = slot;
 
+    /// <param name="faceUp">False turns the card around to show its back.</param>
     /// <param name="playable">Can be taken right now — lit.</param>
     /// <param name="blocked">Still covered by another card — dimmed and deaf to taps.</param>
     public void Show(Card card, bool faceUp, bool playable, bool blocked)
     {
         gameObject.SetActive(true);
 
-        SetTile(faceUp ? TileOf(card) : _backTile);
+        SetFaceUp(faceUp);
+
+        // Face down, the mesh's own back side is what the camera sees, so there is
+        // nothing to write. A mesh with only one material has no back side to turn
+        // to, so there the back cell is drawn on the only face it has.
+        if (faceUp) SetTile(TileOf(card));
+        else if (!_hasBackSide) SetTile(_backTile);
+
+        // Only the face is tinted. The back keeps the look CardBack was authored with.
         SetTint(blocked ? _blockedTint : playable ? _playableTint : _faceTint);
 
         // A covered card is scenery: let the tap reach whatever lies on top of it.
@@ -111,6 +197,19 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
 
     /// <summary>
+    /// Turns the card over. Instant for now — a flip tween belongs here, which is why
+    /// the rotation lives in one place.
+    /// </summary>
+    void SetFaceUp(bool faceUp)
+    {
+        FaceUp = faceUp;
+
+        if (!_hasBackSide) return;
+
+        transform.localRotation = faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+    }
+
+    /// <summary>
     /// The back sits first and the faces follow it, so an Ace lands after the King
     /// of its suit — which is the order the atlas is drawn in, not the order
     /// <see cref="Card.Rank"/> counts in.
@@ -125,7 +224,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
     void SetTile(int tile)
     {
-        if (_material == null) return;
+        if (_front == null) return;
 
         var columns = Mathf.Max(1, _columns);
         var rows = Mathf.Max(1, _rows);
@@ -134,22 +233,25 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         var y = tile / columns;
         if (_countRowsFromBottom) y = rows - 1 - y;
 
-        _material.SetFloat(_tileXProperty, _normalizeTile ? x / (float)columns : x);
-        _material.SetFloat(_tileYProperty, _normalizeTile ? y / (float)rows : y);
+        _front.SetFloat(_tileXProperty, _normalizeTile ? x / (float)columns : x);
+        _front.SetFloat(_tileYProperty, _normalizeTile ? y / (float)rows : y);
     }
 
     void SetTint(Color color)
     {
-        if (_material == null || string.IsNullOrEmpty(_tintProperty)) return;
+        if (_front == null || string.IsNullOrEmpty(_tintProperty)) return;
 
-        _material.SetColor(_tintProperty, color);
+        _front.SetColor(_tintProperty, color);
     }
 
     void OnDestroy()
     {
         Clicked = null;
 
-        // The copy is ours, so it is ours to clean up.
-        if (_material != null) Destroy(_material);
+        // The copies are ours, so they are ours to clean up.
+        if (_materials == null) return;
+
+        foreach (var material in _materials)
+            if (material != null) Destroy(material);
     }
 }

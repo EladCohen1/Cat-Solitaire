@@ -136,8 +136,8 @@ public class LevelPriceInfoWindow : MonoBehaviour
         if (_levelNumberLabel) _levelNumberLabel.text = $"Level {LevelNumber}";
         if (_costText) _costText.text = Describe(price);
 
-        Fill(_priceSlots, price?.Costs, affordable ? _affordableColor : _tooExpensiveColor);
-        Fill(_rewardSlots, rewards, _affordableColor);
+        CurrencySlots.Fill(_priceSlots, price?.Costs, affordable ? _affordableColor : _tooExpensiveColor);
+        CurrencySlots.Fill(_rewardSlots, rewards, _affordableColor);
 
         if (_playButton ) _playButton.interactable = affordable;
         if (_raiseButton ) _raiseButton.interactable = CanMoveTo(_tier + 1);
@@ -146,28 +146,7 @@ public class LevelPriceInfoWindow : MonoBehaviour
 
     bool CanMoveTo(int tier) =>
         tier >= 0 && tier < TierCount && (Ladder == null || Ladder.IsUnlocked(tier, LevelNumber));
-
- 
-    static void Fill(BaseSlotInfo[] slots, CurrencyAmount[] amounts, Color color)
-    {
-        if (slots == null) return;
-
-        for (var i = 0; i < slots.Length; i++)
-        {
-            if (slots[i] == null) continue;
-
-            var used = amounts != null && i < amounts.Length && amounts[i].Currency != null;
-            slots[i].gameObject.SetActive(used);
-            if (!used) continue;
-
-            slots[i].SetInfoText(amounts[i].Amount);
-            slots[i].SetInfoTextColor(color);
-            slots[i].SetIconColor(Color.white);
-
-            if (amounts[i].Currency.Icon != null) slots[i].SetIcon(amounts[i].Currency.Icon);
-        }
-    }
-
+    
     static string Describe(Price price)
     {
         var costs = price?.Costs;

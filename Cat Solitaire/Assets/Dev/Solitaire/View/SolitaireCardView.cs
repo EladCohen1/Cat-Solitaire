@@ -1,84 +1,139 @@
 using System;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 /// <summary>
-/// One card on screen. It knows nothing about the rules: it is told what to show
-/// and it reports taps. Placeholder art — a panel with the rank and suit on it —
-/// so swapping in real card art means changing this file and nothing else.
+/// One card in the world: the card mesh with the atlas material on it. Picking a
+/// face is two floats on the shader, written through a MaterialPropertyBlock so
+/// every card shares one material and no instances are made.
+///
+/// It knows nothing about the rules — it is told what to show and it reports taps.
+/// Taps need a PhysicsRaycaster on the level camera and a collider here, the same
+/// arrangement HubObjectView wants in the hub.
 /// </summary>
-public class SolitaireCardView : MonoBehaviour
+[RequireComponent(typeof(MeshRenderer))]
+public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 {
-    public static readonly Vector2 CardSize = new Vector2(150f, 210f);
+    [SerializeField] MeshRenderer _renderer;
+    [SerializeField] Collider _collider;
 
-    static readonly Color FaceColor = new Color(0.98f, 0.97f, 0.94f);
-    static readonly Color PlayableColor = new Color(1f, 0.95f, 0.65f);
-    static readonly Color BlockedColor = new Color(0.62f, 0.62f, 0.66f);
-    static readonly Color RedInk = new Color(0.78f, 0.16f, 0.20f);
-    static readonly Color BlackInk = new Color(0.12f, 0.12f, 0.16f);
+    [Header("Atlas")]
+    [Tooltip("Cells across and down the atlas texture.")]
+    [SerializeField] int _columns = 8;
+    [SerializeField] int _rows = 8;
 
-    /// <summary>The tapped card. The runner turns this into a move.</summary>
+    [Tooltip("Cell the card back sits in. The rest follow it: 2 up to Ace, suit after suit.")]
+    [SerializeField] int _backTile;
+
+    [Tooltip("How many suits the atlas actually holds. While only one is drawn, every " +
+             "suit borrows it — the rules do not care about suit, only the art does.")]
+    [SerializeField, Min(1)] int _suitsInAtlas = 1;
+
+    [Header("Shader")]
+    [SerializeField] string _tileXProperty = "_Tile_X";
+    [SerializeField] string _tileYProperty = "_Tile_Y";
+
+    [Tooltip("Off writes whole cell numbers. On writes a 0-1 offset instead, for a " +
+             "shader that does not scale them itself.")]
+    [SerializeField] bool _normalizeTile;
+
+    [Tooltip("UVs start at the bottom of a texture while the atlas reads from the top, " +
+             "so the row usually has to be counted the other way.")]
+    [SerializeField] bool _countRowsFromBottom = true;
+
+    [Header("Look")]
+    [SerializeField] Color _faceTint = Color.white;
+    [SerializeField] Color _playableTint = new Color(1f, 0.97f, 0.78f);
+    [SerializeField] Color _blockedTint = new Color(0.68f, 0.68f, 0.72f);
+    [SerializeField] string _tintProperty = "_Color";
+
+    /// <summary>Ranks per suit — Ace through King, however the atlas orders them.</summary>
+    const int RanksPerSuit = 13;
+
     public event Action<SolitaireCardView> Clicked;
 
+    /// <summary>Which tableau slot this card came from, or -1 for the stock and waste piles.</summary>
     public int Slot { get; private set; } = -1;
 
-    RectTransform _rect;
-    Image _background;
-    TMP_Text _label;
-    Button _button;
+    MaterialPropertyBlock _block;
 
-    public static SolitaireCardView Create(Transform parent, string name, int slot)
+    void Reset()
     {
-        var background = SolitaireUi.Panel(name, parent, CardSize, FaceColor);
-
-        var view = background.gameObject.AddComponent<SolitaireCardView>();
-        view.Slot = slot;
-        view._rect = (RectTransform)background.transform;
-        view._background = background;
-
-        view._button = background.gameObject.AddComponent<Button>();
-        view._button.targetGraphic = background;
-        view._button.onClick.AddListener(view.OnClicked);
-
-        view._label = SolitaireUi.Label("Face", background.transform, string.Empty, 56f, BlackInk);
-        var labelRect = (RectTransform)view._label.transform;
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-
-        return view;
+        _renderer = GetComponent<MeshRenderer>();
+        _collider = GetComponent<Collider>();
     }
 
-    public void SetPosition(Vector2 anchoredPosition) => _rect.anchoredPosition = anchoredPosition;
+    void Awake()
+    {
+        if (_renderer == null) _renderer = GetComponent<MeshRenderer>();
+        if (_collider == null) _collider = GetComponent<Collider>();
 
-    /// <param name="playable">The card can be taken right now — highlight it.</param>
-    /// <param name="blocked">Another card still lies on top of it.</param>
-    public void Show(Card card, bool playable, bool blocked)
+        _block = new MaterialPropertyBlock();
+    }
+
+    public void Bind(int slot) => Slot = slot;
+
+    /// <param name="playable">Can be taken right now — lit.</param>
+    /// <param name="blocked">Still covered by another card — dimmed and deaf to taps.</param>
+    public void Show(Card card, bool faceUp, bool playable, bool blocked)
     {
         gameObject.SetActive(true);
 
-        _label.text = card.RankLabel + "\n" + card.SuitLabel;
-        _label.color = blocked ? BlackInk : card.IsRed ? RedInk : BlackInk;
+        SetTile(faceUp ? TileOf(card) : _backTile);
+        SetTint(blocked ? _blockedTint : playable ? _playableTint : _faceTint);
 
-        _background.color = blocked ? BlockedColor : playable ? PlayableColor : FaceColor;
-
-        // A blocked card is scenery: let taps fall through to whatever is on top of it.
-        _button.interactable = !blocked;
-        _background.raycastTarget = !blocked;
+        // A covered card is scenery: let the tap reach whatever lies on top of it.
+        if (_collider != null) _collider.enabled = !blocked;
     }
 
     public void Hide() => gameObject.SetActive(false);
 
-    /// <summary>Stops the board reacting to taps once the round is decided.</summary>
+    /// <summary>Stops the board answering taps once the round is decided.</summary>
     public void Freeze()
     {
-        _button.interactable = false;
-        _background.raycastTarget = false;
+        if (_collider != null) _collider.enabled = false;
     }
 
-    void OnClicked() => Clicked?.Invoke(this);
+    public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
+
+    /// <summary>
+    /// The back sits first and the faces follow it, so an Ace lands after the King
+    /// of its suit — which is the order the atlas is drawn in, not the order
+    /// <see cref="Card.Rank"/> counts in.
+    /// </summary>
+    int TileOf(Card card)
+    {
+        var rank = card.Rank == Card.LowestRank ? RanksPerSuit - 1 : card.Rank - 2;
+        var suit = (int)card.Suit % Mathf.Max(1, _suitsInAtlas);
+
+        return _backTile + 1 + suit * RanksPerSuit + rank;
+    }
+
+    void SetTile(int tile)
+    {
+        if (_renderer == null) return;
+
+        var columns = Mathf.Max(1, _columns);
+        var rows = Mathf.Max(1, _rows);
+
+        var x = tile % columns;
+        var y = tile / columns;
+        if (_countRowsFromBottom) y = rows - 1 - y;
+
+        _renderer.GetPropertyBlock(_block);
+        _block.SetFloat(_tileXProperty, _normalizeTile ? x / (float)columns : x);
+        _block.SetFloat(_tileYProperty, _normalizeTile ? y / (float)rows : y);
+        _renderer.SetPropertyBlock(_block);
+    }
+
+    void SetTint(Color color)
+    {
+        if (_renderer == null || string.IsNullOrEmpty(_tintProperty)) return;
+
+        _renderer.GetPropertyBlock(_block);
+        _block.SetColor(_tintProperty, color);
+        _renderer.SetPropertyBlock(_block);
+    }
 
     void OnDestroy() => Clicked = null;
 }

@@ -4,14 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Owns the hub → level → hub round trip, and it is the only place money changes
-/// hands around a level: it charges the entry cost before loading and grants the
-/// rewards after the result comes back. The level itself never touches the wallet.
-///
-/// Lives on the same persistent GameObject as <see cref="GameBootstrap"/> so it
-/// survives while the level scene is loaded.
-/// </summary>
+
 public class GameFlow : MonoBehaviour
 {
     public static GameFlow Instance { get; private set; }
@@ -33,11 +26,7 @@ public class GameFlow : MonoBehaviour
     }
 
     public void PlayLevel(LevelDef level) => PlayLevel(level, null);
-
-    /// <param name="wager">
-    /// The rung of the reward bar the player picked. Null plays at the level's own
-    /// entry cost for the usual payout.
-    /// </param>
+    
     public void PlayLevel(LevelDef level, WagerTier wager)
     {
         if (level == null)
@@ -59,12 +48,10 @@ public class GameFlow : MonoBehaviour
 
         StartCoroutine(RunLevel(level, wager));
     }
-
-    /// <summary>A wager replaces the level's entry cost rather than adding to it.</summary>
+    
     public static Price PriceOf(LevelDef level, WagerTier wager) =>
         wager != null ? wager.Cost : level.EntryCost;
-
-    /// <summary>What a win pays at this rung — the rung's own numbers, or the level's.</summary>
+    
     public static CurrencyAmount[] WinRewardsOf(LevelDef level, WagerTier wager) =>
         WagerLadderDef.RewardsOf(wager, level);
 
@@ -124,10 +111,7 @@ public class GameFlow : MonoBehaviour
             default: return Array.Empty<CurrencyAmount>();   // quitting pays nothing
         }
     }
-
-    /// <summary>
-    /// Found through the interface in Core, so Meta needs no reference to the Solitaire assembly.
-    /// </summary>
+    
     static ILevelRunner FindRunner(Scene scene)
     {
         if (!scene.IsValid()) return null;

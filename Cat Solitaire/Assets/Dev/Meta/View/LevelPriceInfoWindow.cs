@@ -2,17 +2,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// The window between tapping play and the board appearing: which level is next,
-/// what a run costs, and what it pays. The bar is a bet — move it up and both the
-/// cost and the payout change, straight out of the level's wager ladder.
-///
-/// It charges nothing itself. The chosen rung is handed to <see cref="GameFlow"/>,
-/// which stays the only place money moves around a level.
-///
-/// Put it on something that stays active with <see cref="_window"/> pointing at the
-/// panel, or on the panel itself — both work.
-/// </summary>
 public class LevelPriceInfoWindow : MonoBehaviour
 {
     [Header("Window")]
@@ -144,24 +133,21 @@ public class LevelPriceInfoWindow : MonoBehaviour
         var rewards = GameFlow.WinRewardsOf(_level, tier);
         var affordable = _wallet.CanAfford(price);
 
-        if (_levelNumberLabel != null) _levelNumberLabel.text = $"Level {LevelNumber}";
-        if (_costText != null) _costText.text = Describe(price);
+        if (_levelNumberLabel) _levelNumberLabel.text = $"Level {LevelNumber}";
+        if (_costText) _costText.text = Describe(price);
 
         Fill(_priceSlots, price?.Costs, affordable ? _affordableColor : _tooExpensiveColor);
         Fill(_rewardSlots, rewards, _affordableColor);
 
-        if (_playButton != null) _playButton.interactable = affordable;
-        if (_raiseButton != null) _raiseButton.interactable = CanMoveTo(_tier + 1);
-        if (_lowerButton != null) _lowerButton.interactable = CanMoveTo(_tier - 1);
+        if (_playButton ) _playButton.interactable = affordable;
+        if (_raiseButton ) _raiseButton.interactable = CanMoveTo(_tier + 1);
+        if (_lowerButton ) _lowerButton.interactable = CanMoveTo(_tier - 1);
     }
 
     bool CanMoveTo(int tier) =>
         tier >= 0 && tier < TierCount && (Ladder == null || Ladder.IsUnlocked(tier, LevelNumber));
 
-    /// <summary>
-    /// Slots are placed in the scene rather than spawned, so there are usually more of
-    /// them than a rung needs. The spares are switched off.
-    /// </summary>
+ 
     static void Fill(BaseSlotInfo[] slots, CurrencyAmount[] amounts, Color color)
     {
         if (slots == null) return;
@@ -187,9 +173,11 @@ public class LevelPriceInfoWindow : MonoBehaviour
         var costs = price?.Costs;
         if (costs == null || costs.Length == 0) return "FREE";
 
-        var text = "";
+        return "Cost";
+
+        /*var text = "";
         foreach (var cost in costs)
             text += (text.Length > 0 ? "  " : "") + cost.Amount;
-        return text;
+        return text;*/
     }
 }

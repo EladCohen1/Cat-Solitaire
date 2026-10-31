@@ -53,6 +53,6 @@ public class ChapterProgressView : MonoBehaviour
         if (_completeBadge != null) _completeBadge.SetActive(_progression.IsChapterComplete);
 
         // The chest stays on the bar once claimed, as the thing the goal was for.
-        if (_claimButton != null) _claimButton.interactable = _progression.CanClaimChapterReward;
+        //if (_claimButton != null) _claimButton.interactable = _progression.CanClaimChapterReward;
     }
 }

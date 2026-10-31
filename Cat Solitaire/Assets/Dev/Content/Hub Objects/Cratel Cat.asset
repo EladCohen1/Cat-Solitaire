@@ -13,10 +13,11 @@ MonoBehaviour:
   m_Name: Cratel Cat
   m_EditorClassIdentifier: Meta::HubObjectDef
   Id: cratel-cat
-  DisplayName: Sofa Cat
+  DisplayName: Cratel Cat
   Cost:
     Costs:
     - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
       Amount: 1
   LockedSprite: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   UnlockedSprite: {fileID: 0}
+  Icon: {fileID: 0}

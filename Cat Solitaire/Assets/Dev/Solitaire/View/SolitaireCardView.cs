@@ -8,10 +8,12 @@ using UnityEngine.EventSystems;
 /// every card shares one material and no instances are made.
 ///
 /// It knows nothing about the rules — it is told what to show and it reports taps.
-/// Taps need a PhysicsRaycaster on the level camera and a collider here, the same
-/// arrangement HubObjectView wants in the hub.
+/// Taps need a PhysicsRaycaster on the level camera and a 3D collider — a Collider2D
+/// is a different physics world and the raycaster will not see it.
+///
+/// An FBX drops in as a wrapper with the mesh on a child, so the renderer and the
+/// collider are looked for in children as well as here.
 /// </summary>
-[RequireComponent(typeof(MeshRenderer))]
 public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField] MeshRenderer _renderer;
@@ -57,18 +59,21 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
     MaterialPropertyBlock _block;
 
-    void Reset()
-    {
-        _renderer = GetComponent<MeshRenderer>();
-        _collider = GetComponent<Collider>();
-    }
+    void Reset() => FindParts();
 
     void Awake()
     {
-        if (_renderer == null) _renderer = GetComponent<MeshRenderer>();
-        if (_collider == null) _collider = GetComponent<Collider>();
-
+        FindParts();
         _block = new MaterialPropertyBlock();
+
+        if (_renderer == null)
+            Debug.LogError($"{name}: no MeshRenderer here or under it — nothing to draw a card on.", this);
+    }
+
+    void FindParts()
+    {
+        if (_renderer == null) _renderer = GetComponentInChildren<MeshRenderer>();
+        if (_collider == null) _collider = GetComponentInChildren<Collider>();
     }
 
     public void Bind(int slot) => Slot = slot;

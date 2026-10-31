@@ -56,6 +56,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
     SolitaireCardView[] _cardViews;
     SolitaireCardView _wasteView;
+    SolitaireCardView _stockView;
     int _targetScore;
     bool _roundOver;
 
@@ -104,7 +105,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _game = new SolitaireGame(layout, seed);
 
         BuildBoard(layout);
-        BuildWaste();
+        BuildPiles();
 
         if (_stockButton != null) _stockButton.onClick.AddListener(Draw);
         if (_quitButton != null) _quitButton.onClick.AddListener(Quit);
@@ -145,13 +146,20 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         }
     }
 
-    void BuildWaste()
+    void BuildPiles()
     {
         _wasteView = Instantiate(_cardPrefab, _wasteAnchor != null ? _wasteAnchor : _boardRoot);
         _wasteView.name = "Waste";
         _wasteView.Bind(-1);
         _wasteView.transform.localPosition = Vector3.zero;
         _wasteView.Freeze();
+
+        // The draw pile is a face-down card you tap, so a board needs no UI to be played.
+        _stockView = Instantiate(_cardPrefab, _stockAnchor != null ? _stockAnchor : _boardRoot);
+        _stockView.name = "Stock";
+        _stockView.Bind(-1);
+        _stockView.transform.localPosition = Vector3.zero;
+        _stockView.Clicked += OnStockClicked;
     }
 
     /// <summary>
@@ -160,6 +168,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     /// </summary>
     Vector3 PositionOf(Vector2 slot) =>
         new Vector3(slot.x * _slotSpacing.x, slot.y * _slotSpacing.y, slot.y * _rowDepth);
+
+    void OnStockClicked(SolitaireCardView _) => Draw();
 
     void OnCardClicked(SolitaireCardView view)
     {
@@ -179,6 +189,11 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
         _wasteView.Freeze();
 
+        if (_game.StockRemaining > 0)
+            _stockView.Show(_game.Active, faceUp: false, playable: false, blocked: false);
+        else
+            _stockView.Hide();
+
         if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
         if (_stockButton != null)
             _stockButton.interactable = _game.StockRemaining > 0 && _game.Status == SolitaireStatus.Playing;
@@ -195,6 +210,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _game.Changed -= Refresh;
 
         foreach (var view in _cardViews) view.Freeze();
+        if (_stockView != null) _stockView.Freeze();
         if (_stockButton != null) _stockButton.interactable = false;
 
         var won = _game.Status == SolitaireStatus.Won && _game.Score >= _targetScore;

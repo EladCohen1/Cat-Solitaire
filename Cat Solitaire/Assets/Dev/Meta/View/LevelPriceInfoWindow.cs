@@ -82,8 +82,8 @@ public class LevelPriceInfoWindow : MonoBehaviour
 
         if (_bar != null)
         {
-            _bar.Configure(1, Mathf.Max(1, TierCount));
-            _bar.SetValue(1);
+            _bar.Configure(0, TierCount);
+            _bar.SetValue(BarValueFor(_tier));
         }
 
         Refresh();
@@ -102,12 +102,12 @@ public class LevelPriceInfoWindow : MonoBehaviour
         
         if (Ladder != null && !Ladder.IsUnlocked(wanted, LevelNumber))
         {
-            if (_bar != null) _bar.SetValue(_tier);
+            if (_bar != null) _bar.SetValue(BarValueFor(_tier));
             return;
         }
 
         _tier = wanted;
-        if (_bar != null) _bar.SetValue(_tier);
+        if (_bar != null) _bar.SetValue(BarValueFor(_tier));
 
         Refresh();
     }
@@ -123,7 +123,12 @@ public class LevelPriceInfoWindow : MonoBehaviour
 
     int LevelNumber => _ladder != null ? _ladder.CurrentNumber : 1;
 
-    void OnBarMoved(int value) => SelectTier(value);
+    void OnBarMoved(int value) => SelectTier(TierFor(value));
+
+    // The bar reads as rungs filled, so the bottom rung is 1 of 3, not 0 of 3.
+    static int BarValueFor(int tier) => tier + 1;
+
+    static int TierFor(int barValue) => barValue - 1;
 
     void OnCurrencyChanged(CurrencyDef _)
     {

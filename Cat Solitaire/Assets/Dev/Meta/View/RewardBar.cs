@@ -12,11 +12,17 @@ public class RewardBar : MonoBehaviour
     public int Value => (int)_rewardSlider.value;
     
     
+    // Sized by the ladder being shown, not by the inspector: a level whose ladder has
+    // four rungs would otherwise fill a bar built for three. The floor stays at 0 so
+    // that one rung of three reads as a third full rather than empty.
     public void Configure(int min, int max)
     {
-        _rewardSlider.value = _minValue;
+        _minValue = min;
+        _maxValue = Mathf.Max(min, max);
+
+        _rewardSlider.minValue = _minValue;
         _rewardSlider.maxValue = _maxValue;
-        SetValue(_rewardSlider.value <= _minValue ? _minValue : Value);
+        _rewardSlider.value = Mathf.Clamp(Value, _minValue, _maxValue);
     }
 
     public void SetValue(int value)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -13,7 +14,29 @@ public class ProgressionService
     public event Action ChapterRewardClaimed;
 
     public ProgressionService(PlayerProfile p, Wallet w, HubChapterDef c)
-    { _profile = p; _wallet = w; _chapter = c; }
+    { _profile = p; _wallet = w; _chapter = c; WarnAboutSharedIds(); }
+
+    /// <summary>
+    /// Unlocks are saved by id, so two objects sharing one are bought together and
+    /// counted twice — progress jumps straight to full on the first purchase.
+    /// Duplicating an asset and forgetting to rename the id is the usual way in.
+    /// </summary>
+    void WarnAboutSharedIds()
+    {
+        if (_chapter == null || _chapter.Objects == null) return;
+
+        var seen = new HashSet<string>();
+
+        foreach (var o in _chapter.Objects)
+        {
+            if (o == null) continue;
+
+            if (!seen.Add(o.Id))
+                Debug.LogError(
+                    $"{_chapter.name}: '{o.name}' reuses the id '{o.Id}'. Unlocking any one of them unlocks them all.",
+                    _chapter);
+        }
+    }
 
     public HubChapterDef Chapter => _chapter;
 

@@ -47,7 +47,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 33960db4cc6c4c9ba4a3f70c3d0b8abb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Solitaire::SolitaireCardView
-  _renderer: {fileID: 7796338070082667673}
+  _renderer: {fileID: 5751389835536583179}
   _collider: {fileID: 1085360873741511364}
   _columns: 8
   _rows: 8
@@ -107,7 +107,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 2b7a921db1bb3ac429a382adc2763961, type: 2}
+  - {fileID: 2100000, guid: f9c7d67052a653345a29fac67ef2db81, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -205,8 +205,8 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 173f7ffe408829a45917974937a8e72a, type: 3}
   m_PrefabInstance: {fileID: 1816380280025585734}
   m_PrefabAsset: {fileID: 0}
---- !u!23 &7796338070082667673 stripped
+--- !u!23 &5751389835536583179 stripped
 MeshRenderer:
-  m_CorrespondingSourceObject: {fileID: 8432774895545539807, guid: 173f7ffe408829a45917974937a8e72a, type: 3}
+  m_CorrespondingSourceObject: {fileID: -2962208943838834099, guid: 173f7ffe408829a45917974937a8e72a, type: 3}
   m_PrefabInstance: {fileID: 1816380280025585734}
   m_PrefabAsset: {fileID: 0}

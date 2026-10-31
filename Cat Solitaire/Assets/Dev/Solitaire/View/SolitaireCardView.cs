@@ -4,8 +4,12 @@ using UnityEngine.EventSystems;
 
 /// <summary>
 /// One card in the world: the card mesh with the atlas material on it. Picking a
-/// face is two floats on the shader, written through a MaterialPropertyBlock so
-/// every card shares one material and no instances are made.
+/// face is two floats on the shader.
+///
+/// Each card gets its own copy of the material. A MaterialPropertyBlock would be
+/// cheaper, but Shader Graph shaders under URP are SRP Batcher compatible, which
+/// keeps exposed properties in the per-material constant buffer and ignores block
+/// overrides entirely — every card would show whatever the shared material says.
 ///
 /// It knows nothing about the rules — it is told what to show and it reports taps.
 /// Taps need a PhysicsRaycaster on the level camera and a 3D collider — a Collider2D
@@ -39,9 +43,9 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
              "shader that does not scale them itself.")]
     [SerializeField] bool _normalizeTile;
 
-    [Tooltip("UVs start at the bottom of a texture while the atlas reads from the top, " +
-             "so the row usually has to be counted the other way.")]
-    [SerializeField] bool _countRowsFromBottom = true;
+    [Tooltip("On if the shader counts rows up from the bottom of the texture. SHDR_Cards " +
+             "counts down from the top, which is how the atlas is drawn.")]
+    [SerializeField] bool _countRowsFromBottom;
 
     [Header("Look")]
     [SerializeField] Color _faceTint = Color.white;
@@ -57,17 +61,22 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     /// <summary>Which tableau slot this card came from, or -1 for the stock and waste piles.</summary>
     public int Slot { get; private set; } = -1;
 
-    MaterialPropertyBlock _block;
+    Material _material;
 
     void Reset() => FindParts();
 
     void Awake()
     {
         FindParts();
-        _block = new MaterialPropertyBlock();
 
         if (_renderer == null)
+        {
             Debug.LogError($"{name}: no MeshRenderer here or under it — nothing to draw a card on.", this);
+            return;
+        }
+
+        // Asking for .material rather than .sharedMaterial is what makes the copy.
+        _material = _renderer.material;
     }
 
     void FindParts()
@@ -116,7 +125,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
     void SetTile(int tile)
     {
-        if (_renderer == null) return;
+        if (_material == null) return;
 
         var columns = Mathf.Max(1, _columns);
         var rows = Mathf.Max(1, _rows);
@@ -125,20 +134,22 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         var y = tile / columns;
         if (_countRowsFromBottom) y = rows - 1 - y;
 
-        _renderer.GetPropertyBlock(_block);
-        _block.SetFloat(_tileXProperty, _normalizeTile ? x / (float)columns : x);
-        _block.SetFloat(_tileYProperty, _normalizeTile ? y / (float)rows : y);
-        _renderer.SetPropertyBlock(_block);
+        _material.SetFloat(_tileXProperty, _normalizeTile ? x / (float)columns : x);
+        _material.SetFloat(_tileYProperty, _normalizeTile ? y / (float)rows : y);
     }
 
     void SetTint(Color color)
     {
-        if (_renderer == null || string.IsNullOrEmpty(_tintProperty)) return;
+        if (_material == null || string.IsNullOrEmpty(_tintProperty)) return;
 
-        _renderer.GetPropertyBlock(_block);
-        _block.SetColor(_tintProperty, color);
-        _renderer.SetPropertyBlock(_block);
+        _material.SetColor(_tintProperty, color);
     }
 
-    void OnDestroy() => Clicked = null;
+    void OnDestroy()
+    {
+        Clicked = null;
+
+        // The copy is ours, so it is ours to clean up.
+        if (_material != null) Destroy(_material);
+    }
 }

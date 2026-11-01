@@ -92,7 +92,7 @@ public class SolitaireLayoutTests
     }
 
     [Test]
-    public void RolledBoardsHitTheCardCountTheyWereAskedFor([Range(1, 40)] int seed)
+    public void RolledBoardsHitTheCardCountTheyWereAskedFor([NUnit.Framework.Range(1, 40)] int seed)
     {
         var slots = SolitaireLayoutGenerator.FromPattern(
             SolitaireLayoutGenerator.GeneratePattern(Rolling(seed)));

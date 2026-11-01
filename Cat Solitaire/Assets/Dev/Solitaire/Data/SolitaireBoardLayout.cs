@@ -7,8 +7,14 @@ using UnityEngine;
 /// top of it. Positions are measured in card widths and heights, never pixels, so
 /// the view is free to scale the whole board to whatever screen it lands on.
 ///
-/// Leave <see cref="Slots"/> empty to get the classic three-peak board. Use the
-/// context menu to bake that arrangement into the asset when you want to hand-edit it.
+/// There are three ways to get a shape, and they end in the same place:
+///
+///   * leave everything empty for the classic three peaks;
+///   * draw one in <see cref="Pattern"/> and bake it;
+///   * describe one in <see cref="Generator"/> and roll seeds until you like it.
+///
+/// Blockers are never typed in. Whichever route is taken, which card covers which
+/// is worked out from where the cards sit, so a board cannot disagree with itself.
 /// </summary>
 [CreateAssetMenu(menuName = "Cat/Solitaire Board Layout")]
 public class SolitaireBoardLayout : ScriptableObject
@@ -23,61 +29,141 @@ public class SolitaireBoardLayout : ScriptableObject
         public int[] Blockers = Array.Empty<int>();
     }
 
+    [Tooltip("The baked board. Empty falls back to the drawing below, and failing that to the classic three peaks.")]
     public Slot[] Slots;
 
     [Tooltip("How many of the cards left over after the deal go into the draw pile. The rest sit out the round.")]
     public int StockCount = 23;
 
-    /// <summary>The authored slots, or the classic three peaks when nothing is authored.</summary>
-    public IReadOnlyList<Slot> EffectiveSlots =>
-        Slots != null && Slots.Length > 0 ? Slots : BuildClassicTriPeaks();
+    [Header("Drawing")]
+    [Tooltip("One line per row, one character per half a card width. Dots and spaces are gaps, " +
+             "anything else is a card. Bake it into Slots from the context menu, or leave it " +
+             "and it is read at play time.")]
+    [TextArea(4, 12)]
+    public string PatternText;
+
+    [Header("Generator")]
+    [Tooltip("A description to roll boards from. Use 'Roll A New Board' until you like one.")]
+    public SolitaireLayoutGenerator.Settings Generator = new SolitaireLayoutGenerator.Settings();
+
+    /// <summary>The drawing, split into rows. Empty when nothing is drawn.</summary>
+    public string[] Pattern =>
+        string.IsNullOrWhiteSpace(PatternText)
+            ? Array.Empty<string>()
+            : PatternText.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+    /// <summary>
+    /// The board as the game sees it: what was baked, else what was drawn, else the
+    /// classic three peaks.
+    /// </summary>
+    public IReadOnlyList<Slot> EffectiveSlots
+    {
+        get
+        {
+            if (Slots != null && Slots.Length > 0) return Slots;
+
+            var pattern = Pattern;
+            return pattern.Length > 0
+                ? SolitaireLayoutGenerator.FromPattern(pattern)
+                : BuildClassicTriPeaks();
+        }
+    }
 
     /// <summary>
     /// The standard 28-card board: three peaks of 1 + 2 + 3 cards sitting on a
     /// shared row of ten. Every card is overlapped by the two cards half a width
     /// to either side of it on the row below, and those two are its blockers.
     /// </summary>
-    public static Slot[] BuildClassicTriPeaks()
-    {
-        float[][] rows =
-        {
-            new[] { 1.5f, 4.5f, 7.5f },
-            new[] { 1f, 2f, 4f, 5f, 7f, 8f },
-            new[] { 0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f, 6.5f, 7.5f, 8.5f },
-            new[] { 0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f },
-        };
-
-        const float rowSpacing = 0.5f;   // rows overlap by half a card
-        const float overlapReach = 0.6f; // a card is covered by anything within half a width
-
-        var slots = new List<Slot>();
-        var rowStart = new int[rows.Length];
-
-        for (var row = 0; row < rows.Length; row++)
-        {
-            rowStart[row] = slots.Count;
-            var y = (rows.Length - 1 - row) * rowSpacing;
-
-            foreach (var x in rows[row])
-                slots.Add(new Slot { Position = new Vector2(x, y) });
-        }
-
-        // The bottom row is covered by nothing, which is why it starts out playable.
-        for (var row = 0; row < rows.Length - 1; row++)
-            for (var i = 0; i < rows[row].Length; i++)
-            {
-                var blockers = new List<int>();
-
-                for (var j = 0; j < rows[row + 1].Length; j++)
-                    if (Mathf.Abs(rows[row + 1][j] - rows[row][i]) < overlapReach)
-                        blockers.Add(rowStart[row + 1] + j);
-
-                slots[rowStart[row] + i].Blockers = blockers.ToArray();
-            }
-
-        return slots.ToArray();
-    }
+    public static Slot[] BuildClassicTriPeaks() =>
+        SolitaireLayoutGenerator.FromPattern(SolitaireLayoutGenerator.ClassicTriPeaks);
 
     [ContextMenu("Bake Classic Tri-Peaks")]
-    void BakeClassicTriPeaks() => Slots = BuildClassicTriPeaks();
+    void BakeClassicTriPeaks()
+    {
+        PatternText = string.Join("\n", SolitaireLayoutGenerator.ClassicTriPeaks);
+        Slots = BuildClassicTriPeaks();
+        Report("Classic tri-peaks");
+    }
+
+    /// <summary>Draws a board from the generator settings, without baking it.</summary>
+    [ContextMenu("Generate Board")]
+    void GenerateBoard()
+    {
+        PatternText = string.Join("\n", SolitaireLayoutGenerator.GeneratePattern(Generator));
+        Slots = Array.Empty<Slot>();
+        Report($"Generated from seed {Generator.Seed}");
+    }
+
+    /// <summary>Rolls the seed on, for flicking through boards until one looks right.</summary>
+    [ContextMenu("Roll A New Board")]
+    void RollANewBoard()
+    {
+        Generator.Seed++;
+        GenerateBoard();
+    }
+
+    /// <summary>
+    /// Freezes whatever is drawn into <see cref="Slots"/>, for nudging a single card
+    /// by hand. Blockers are worked out as it bakes, so they stay honest.
+    /// </summary>
+    [ContextMenu("Bake Drawing Into Slots")]
+    void BakeDrawing()
+    {
+        var pattern = Pattern;
+
+        if (pattern.Length == 0)
+        {
+            Debug.LogWarning($"{name}: nothing drawn to bake.", this);
+            return;
+        }
+
+        Slots = SolitaireLayoutGenerator.FromPattern(pattern);
+        Report("Baked");
+    }
+
+    /// <summary>Goes back to the drawing, so the generator is in charge again.</summary>
+    [ContextMenu("Clear Baked Slots")]
+    void ClearBakedSlots()
+    {
+        Slots = Array.Empty<Slot>();
+        Report("Cleared");
+    }
+
+    [ContextMenu("Check This Board")]
+    void CheckThisBoard() => Report("Checked");
+
+    /// <summary>
+    /// Deals and plays this board 200 times and prints how it went. Slow enough to be
+    /// worth asking for rather than doing on every change, quick enough to sit through.
+    /// </summary>
+    [ContextMenu("Play This Board 200 Times")]
+    void PlayThisBoard()
+    {
+        var result = SolitaireLayoutProbe.Measure(this);
+
+        Debug.Log($"{name}: {result}\n" + string.Join("\n", Pattern), this);
+    }
+
+    /// <summary>
+    /// Prints what this board comes to and anything wrong with it. Worth a look
+    /// before shipping a level: a board the deck cannot fill throws at deal time.
+    /// </summary>
+    void Report(string what)
+    {
+        var slots = EffectiveSlots;
+        var problems = SolitaireLayoutGenerator.Problems(slots, StockCount);
+        var needed = slots.Count + 1 + Mathf.Max(0, StockCount);
+
+        var summary = $"{name}: {what} — {slots.Count} cards on the board, " +
+                      $"{StockCount} in the draw pile, {needed} of {CardDeck.Size} dealt.";
+
+        if (problems.Count == 0)
+        {
+            Debug.Log(summary + "\n" + string.Join("\n", Pattern), this);
+            return;
+        }
+
+        Debug.LogWarning(summary + "\n  " + string.Join("\n  ", problems) +
+                         "\n" + string.Join("\n", Pattern), this);
+    }
 }

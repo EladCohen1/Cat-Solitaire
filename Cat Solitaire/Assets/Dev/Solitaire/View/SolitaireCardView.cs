@@ -6,11 +6,16 @@ using UnityEngine.EventSystems;
 /// One card in the world: the card mesh with the atlas material on it. Picking a
 /// face is two floats on the shader.
 ///
-/// Card.fbx carries two material slots — CardFront on the side you read and CardBack
-/// on the other. Only the front is ever written: the back art is whatever CardBack
-/// was authored with, and a face-down card is simply a card turned around. Writing a
-/// back cell into the front material would leave the mesh's own back side showing
-/// through from behind and give the card two backs.
+/// Card.fbx is two mesh objects back to back, Card_Front and Card_Back, each with one
+/// material of its own — so the face lives on one renderer and the back on another.
+/// The front is found by material name rather than assumed, because a card built the
+/// other way (one mesh, two submeshes) is just as likely and the slot order is the
+/// mesh's business either way.
+///
+/// Only the front is ever written: the back art is whatever CardBack was authored
+/// with, and a face-down card is simply a card turned around. Writing a back cell
+/// into the front material would leave the real back side showing from behind and
+/// give the card two backs.
 ///
 /// Each card gets its own copies of both materials. A MaterialPropertyBlock would be
 /// cheaper, but Shader Graph shaders under URP are SRP Batcher compatible, which
@@ -26,7 +31,8 @@ using UnityEngine.EventSystems;
 /// </summary>
 public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 {
-    [SerializeField] MeshRenderer _renderer;
+    [Tooltip("Leave empty to find the renderer carrying the card face by material name.")]
+    [SerializeField] MeshRenderer _frontRenderer;
     [SerializeField] Collider _collider;
 
     [Header("Atlas")]
@@ -43,10 +49,13 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     [SerializeField, Min(1)] int _suitsInAtlas = 1;
 
     [Header("Materials")]
-    [Tooltip("Material slot that carries the face. Card.fbx has two, CardFront and " +
-             "CardBack, and the face must be written to the right one — slot 0 is " +
-             "whichever the mesh happens to list first.")]
+    [Tooltip("Material on the side of the card the player reads. Matched ignoring case, " +
+             "spaces and underscores, so Card_Front finds CardFront.")]
     [SerializeField] string _frontMaterialName = "CardFront";
+
+    [Tooltip("Material on the other side. Finding it is what tells the card it has a " +
+             "real back to turn to.")]
+    [SerializeField] string _backMaterialName = "CardBack";
 
     [Tooltip("Leave at -1 to find the front slot by name. Set an index only if the " +
              "material names change.")]
@@ -96,63 +105,100 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     {
         FindParts();
 
-        if (_renderer == null)
+        if (_frontRenderer == null)
         {
-            Debug.LogError($"{name}: no MeshRenderer here or under it — nothing to draw a card on.", this);
+            Debug.LogError($"{name}: found no renderer carrying a '{_frontMaterialName}' material, " +
+                           "and nothing with a mesh to fall back on — there is nothing to draw a card on.", this);
             return;
         }
 
         // Asking for .materials rather than .sharedMaterials is what makes the copies,
-        // and the renderer goes on using them, so every card gets its own set.
-        _materials = _renderer.materials;
+        // and the renderer goes on using them, so every card gets its own.
+        _materials = _frontRenderer.materials;
 
         if (_materials.Length == 0)
         {
-            Debug.LogError($"{name}: the card mesh has no material on it.", this);
+            Debug.LogError($"{name}: '{_frontRenderer.name}' has no material on it.", this);
             return;
         }
 
-        _hasBackSide = _materials.Length > 1;
-        _front = _materials[FrontSlot()];
+        _front = _materials[Mathf.Clamp(_frontMaterialSlot, 0, _materials.Length - 1)];
     }
 
     /// <summary>
-    /// Which material slot the readable side of the card is on. Slot order comes from
-    /// the mesh, so it is found by name rather than assumed.
+    /// Works out which renderer and slot hold the readable side of the card, and
+    /// whether there is a back side to turn to. Card.fbx keeps the two sides on
+    /// separate mesh objects, but a card built as one mesh with two submeshes is just
+    /// as valid, so both the renderers and their slots are searched by material name.
     /// </summary>
-    int FrontSlot()
-    {
-        if (_frontMaterialSlot >= 0)
-            return Mathf.Clamp(_frontMaterialSlot, 0, _materials.Length - 1);
-
-        if (!string.IsNullOrEmpty(_frontMaterialName))
-        {
-            // Copies are named "CardFront (Instance)", hence StartsWith.
-            for (var i = 0; i < _materials.Length; i++)
-                if (_materials[i] != null &&
-                    _materials[i].name.StartsWith(_frontMaterialName, StringComparison.OrdinalIgnoreCase))
-                    return i;
-
-            if (_hasBackSide)
-                Debug.LogWarning($"{name}: no material slot named '{_frontMaterialName}' — writing the " +
-                                 "card face to the first slot, which may be the back of the card.", this);
-        }
-
-        return 0;
-    }
-
     void FindParts()
     {
-        // A renderer with no mesh under it draws nothing, so skip past one to the
-        // renderer that actually shows the card.
-        if (_renderer == null) _renderer = FindDrawnRenderer();
         if (_collider == null) _collider = GetComponentInChildren<Collider>();
+
+        var renderers = GetComponentsInChildren<MeshRenderer>(includeInactive: true);
+
+        // The back only has to be found, never written, so a shared material is enough.
+        foreach (var renderer in renderers)
+            if (SlotNamed(renderer, _backMaterialName) >= 0)
+            {
+                _hasBackSide = true;
+                break;
+            }
+
+        // Explicit wiring wins, as long as it says which slot it means.
+        if (_frontRenderer != null && _frontMaterialSlot >= 0) return;
+
+        foreach (var renderer in renderers)
+        {
+            var slot = SlotNamed(renderer, _frontMaterialName);
+            if (slot < 0) continue;
+
+            _frontRenderer = renderer;
+            _frontMaterialSlot = slot;
+            return;
+        }
+
+        // No material said it was the face. Rather than write the rank onto whatever
+        // comes first — which may well be the back — take the renderer already wired,
+        // and failing that the first one with a mesh, and say so.
+        if (_frontRenderer == null) _frontRenderer = FirstDrawnRenderer(renderers);
+        if (_frontMaterialSlot < 0) _frontMaterialSlot = 0;
+
+        if (_frontRenderer != null)
+            Debug.LogWarning($"{name}: no material named '{_frontMaterialName}' under this card, so the " +
+                             $"face is going to '{_frontRenderer.name}' slot 0. If that is the back of the " +
+                             "card, every card will look the same — name the materials or wire the front " +
+                             "renderer and slot by hand.", this);
     }
 
-    MeshRenderer FindDrawnRenderer()
+    /// <summary>The slot on this renderer holding a material of that name, or -1.</summary>
+    static int SlotNamed(MeshRenderer renderer, string wanted)
     {
-        var candidates = GetComponentsInChildren<MeshRenderer>(includeInactive: true);
+        if (renderer == null || string.IsNullOrEmpty(wanted)) return -1;
 
+        // sharedMaterials, so that looking does not quietly instance every card's art.
+        var materials = renderer.sharedMaterials;
+
+        for (var i = 0; i < materials.Length; i++)
+            if (materials[i] != null && NameMatches(materials[i].name, wanted))
+                return i;
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Loose enough that Card_Front answers to CardFront, and that a copy named
+    /// "CardFront (Instance)" still answers to it.
+    /// </summary>
+    static bool NameMatches(string candidate, string wanted) =>
+        !string.IsNullOrEmpty(candidate) &&
+        Simplify(candidate).StartsWith(Simplify(wanted), StringComparison.OrdinalIgnoreCase);
+
+    static string Simplify(string name) => name.Replace("_", string.Empty).Replace(" ", string.Empty);
+
+    /// <summary>A renderer with no mesh under it draws nothing, so skip past one.</summary>
+    static MeshRenderer FirstDrawnRenderer(MeshRenderer[] candidates)
+    {
         foreach (var candidate in candidates)
         {
             var filter = candidate.GetComponent<MeshFilter>();

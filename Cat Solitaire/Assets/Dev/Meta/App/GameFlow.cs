@@ -86,7 +86,7 @@ public class GameFlow : MonoBehaviour
 
         var finished = false;
         var result = default(LevelResult);
-        runner.Run(level, r => { result = r; finished = true; });
+        runner.Run(level, wallet, r => { result = r; finished = true; });
 
         while (!finished) yield return null;
 

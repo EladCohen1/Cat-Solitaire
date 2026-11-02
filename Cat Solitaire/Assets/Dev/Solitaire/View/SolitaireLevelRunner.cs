@@ -21,6 +21,10 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     [Tooltip("Used when the LevelDef carries no solitaire rules, and when this scene is played on its own.")]
     [SerializeField] SolitaireLevelDef _fallbackRules;
 
+    [Tooltip("What buying a move back or a wildcard costs, and what a run pays. " +
+             "Left empty, both are free and the run bonus is off.")]
+    [SerializeField] SolitaireBoostersDef _boosters;
+
     [Header("Board")]
     [SerializeField] SolitaireCardView _cardPrefab;
     [Tooltip("Cards are parented here. Left empty, the runner's own transform is used.")]
@@ -51,7 +55,17 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     /// <summary>Raised with the slot a card just left, for a flight to the waste pile.</summary>
     public event Action<int> CardPlayed;
 
+    /// <summary>Raised with the slot a card just returned to, for a flight back.</summary>
+    public event Action<int> CardReturned;
+
+    /// <summary>Raised after every change, for the HUD to read the round back.</summary>
+    public event Action Changed;
+
+    /// <summary>Raised when a run pays out, for the bonus to be shown landing.</summary>
+    public event Action StreakPaid;
+
     Action<LevelResult> _onComplete;
+    ILevelPurse _purse;
     SolitaireGame _game;
     SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
     SolitaireCardView[] _cardViews;
@@ -60,9 +74,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     int _targetScore;
     bool _roundOver;
 
-    public void Run(LevelDef def, Action<LevelResult> onComplete)
+    public void Run(LevelDef def, ILevelPurse purse, Action<LevelResult> onComplete)
     {
         _onComplete = onComplete;
+
+        // No purse means the level scene is being played on its own, so the things
+        // you would buy are free rather than missing — that is the whole point of
+        // being able to open this scene and press play.
+        _purse = purse;
 
         var rules = def != null ? def.RuleData as SolitaireLevelDef : null;
 
@@ -93,6 +112,64 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         if (_game != null) _game.TryDraw();
     }
 
+    // ---- what the HUD reads -------------------------------------------------
+
+    public bool CanUndo => _game != null && _game.CanUndo;
+    public bool WildcardArmed => _game != null && _game.WildcardArmed;
+    public int StreakMeter => _game != null ? _game.StreakMeter : 0;
+    public int StreakLength => _game != null ? _game.StreakLength : 0;
+    public int Score => _game != null ? _game.Score : 0;
+    public int StockRemaining => _game != null ? _game.StockRemaining : 0;
+
+    public Price UndoPrice => _boosters != null ? _boosters.UndoPrice : null;
+    public Price WildcardPrice => _boosters != null ? _boosters.WildcardPrice : null;
+
+    /// <summary>Affordable and worth buying right now — what greys the button out.</summary>
+    public bool CanBuyUndo => CanUndo && Affordable(UndoPrice);
+
+    public bool CanBuyWildcard =>
+        _game != null && _game.Status == SolitaireStatus.Playing &&
+        !WildcardArmed && Affordable(WildcardPrice);
+
+    // ---- what the HUD buttons call ------------------------------------------
+
+    /// <summary>
+    /// Buys one move back. Nothing is charged for a move that cannot be taken back,
+    /// and nothing is taken back if the money is not there — in that order, so a
+    /// player is never charged for nothing.
+    /// </summary>
+    public void BuyUndo()
+    {
+        if (_game == null || !_game.CanUndo) return;
+        if (!Spend(UndoPrice)) return;
+
+        _game.TryUndo();
+    }
+
+    /// <summary>Buys one wildcard, armed until a card that needs it is played.</summary>
+    public void BuyWildcard()
+    {
+        if (_game == null || _game.Status != SolitaireStatus.Playing || _game.WildcardArmed) return;
+        if (!Spend(WildcardPrice)) return;
+
+        _game.TryArmWildcard();
+    }
+
+    bool Affordable(Price price) => _purse == null || _purse.CanAfford(price);
+
+    bool Spend(Price price) => _purse == null || _purse.TrySpend(price);
+
+    /// <summary>
+    /// Pays for a run as it happens rather than at the end of the round, so the
+    /// counter moves while the player is still looking at the cards.
+    /// </summary>
+    void PayForTheRun()
+    {
+        if (_boosters != null) _purse?.Grant(_boosters.StreakReward);
+
+        StreakPaid?.Invoke();
+    }
+
     void Build(SolitaireLevelDef rules)
     {
         _targetScore = rules != null ? rules.TargetScore : 0;
@@ -102,7 +179,10 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             ? rules.Seed
             : UnityEngine.Random.Range(int.MinValue, int.MaxValue);
 
-        _game = new SolitaireGame(layout, seed);
+        _game = new SolitaireGame(layout, seed)
+        {
+            StreakLength = _boosters != null ? _boosters.StreakLength : 0,
+        };
 
         BuildBoard(layout);
         BuildPiles();
@@ -111,6 +191,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         if (_quitButton != null) _quitButton.onClick.AddListener(Quit);
 
         _game.Changed += Refresh;
+        _game.StreakCompleted += PayForTheRun;
+        _game.SlotRestored += slot => CardReturned?.Invoke(slot);
         Refresh();
 
         Dealt?.Invoke();
@@ -211,6 +293,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         if (_scoreLabel != null)
             _scoreLabel.text = _game.Combo > 1 ? $"{_game.Score}   x{_game.Combo}" : _game.Score.ToString();
 
+        Changed?.Invoke();
+
         if (_game.Status != SolitaireStatus.Playing && !_roundOver) OnRoundOver();
     }
 
@@ -275,7 +359,11 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void OnDestroy()
     {
-        if (_game != null) _game.Changed -= Refresh;
+        if (_game != null)
+        {
+            _game.Changed -= Refresh;
+            _game.StreakCompleted -= PayForTheRun;
+        }
         if (_runtimeLayout != null) Destroy(_runtimeLayout);
     }
 }

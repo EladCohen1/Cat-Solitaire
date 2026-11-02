@@ -259,6 +259,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Solitaire::SolitaireLevelRunner
   _fallbackRules: {fileID: 11400000, guid: 0a160da613d9492b98ba72e1eb109337, type: 2}
+  _boosters: {fileID: 11400000, guid: 23bcdee8f8fc4654823570c21090dc9f, type: 2}
   _cardPrefab: {fileID: 6117259286806932238, guid: cdfc01c5a4dbc1448bc4aadf44bc4711, type: 3}
   _boardRoot: {fileID: 1841329230}
   _stockAnchor: {fileID: 614767321}

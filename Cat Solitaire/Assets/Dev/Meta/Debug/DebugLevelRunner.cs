@@ -14,7 +14,7 @@ public class DebugLevelRunner : MonoBehaviour, ILevelRunner
 
     Action<LevelResult> _onComplete;
 
-    public void Run(LevelDef def, Action<LevelResult> onComplete)
+    public void Run(LevelDef def, ILevelPurse purse, Action<LevelResult> onComplete)
     {
         _onComplete = onComplete;
 

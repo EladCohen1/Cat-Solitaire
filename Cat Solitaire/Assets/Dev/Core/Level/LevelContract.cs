@@ -9,6 +9,9 @@ public class LevelDef : ScriptableObject
     public CurrencyAmount[] WinRewards;
     public CurrencyAmount[] LoseRewards;
     public ScriptableObject RuleData;   // his deck layout — Meta never reads it
+
+    [Tooltip("The reward bar shown before the level. Empty means one tier, at the entry cost above.")]
+    public WagerLadderDef Wagers;
 }
 
 public enum LevelOutcome { Win, Lose, Quit }

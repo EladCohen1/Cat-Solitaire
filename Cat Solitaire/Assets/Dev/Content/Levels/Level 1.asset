@@ -12,11 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6450979cb89af58409c8b657b07e932a, type: 3}
   m_Name: Level 1
   m_EditorClassIdentifier: Core::LevelDef
-  Id: 1
+  Id: level-1
   EntryCost:
-    Costs:
-    - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
-      Amount: 250
+    Costs: []
   WinRewards:
   - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
     Amount: 220
@@ -24,3 +22,4 @@ MonoBehaviour:
     Amount: 1
   LoseRewards: []
   RuleData: {fileID: 11400000, guid: 0a160da613d9492b98ba72e1eb109337, type: 2}
+  Wagers: {fileID: 11400000, guid: 276e72defb6449f08b2a63cc7ec3ae7b, type: 2}

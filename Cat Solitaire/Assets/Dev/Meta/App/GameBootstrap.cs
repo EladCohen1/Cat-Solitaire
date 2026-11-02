@@ -1,19 +1,17 @@
 using UnityEngine;
 
-/// <summary>
-/// The composition root: the single place where the profile is loaded and the
-/// services are constructed. Everything else receives them from here.
-/// </summary>
 public class GameBootstrap : MonoBehaviour
 {
     public static GameBootstrap Instance { get; private set; }
 
     [SerializeField] HubChapterDef _startingChapter;
+    [SerializeField] LevelSequenceDef _levels;
 
     PlayerProfile _profile;
 
     public Wallet Wallet { get; private set; }
     public ProgressionService Progression { get; private set; }
+    public LevelLadder Ladder { get; private set; }
 
     void Awake()
     {
@@ -25,11 +23,11 @@ public class GameBootstrap : MonoBehaviour
         _profile = SaveService.Load();
         Wallet = new Wallet(_profile);
         Progression = new ProgressionService(_profile, Wallet, _startingChapter);
-
-        // Anything that changes the profile writes it back.
+        Ladder = new LevelLadder(_profile, _levels);
+        
         Wallet.Changed += _ => Save();
         Progression.ObjectUnlocked += _ => Save();
-        Progression.ChapterRewardClaimed += Save;   // a reward of nothing still has to stay claimed
+        Progression.ChapterRewardClaimed += Save; 
     }
 
     public void Save()
@@ -41,13 +39,13 @@ public class GameBootstrap : MonoBehaviour
     {
         if (_profile == null) return;
 
-        _profile.LevelsCompleted++;
+        Ladder.RecordWin();  
         Save();
     }
 
     void OnApplicationPause(bool paused)
     {
-        if (paused) Save();   // on mobile this is the reliable one, not OnApplicationQuit
+        if (paused) Save();  
     }
 
     void OnApplicationQuit() => Save();

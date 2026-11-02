@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 826cc5cdca0d4f20a8b2d32050dd9ceb, type: 3}
+  m_Name: Wager Ladder
+  m_EditorClassIdentifier: Core::WagerLadderDef
+  Tiers:
+  - Label: x1
+    Cost:
+      Costs:
+      - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+        Amount: 900
+    WinRewards:
+    - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+      Amount: 1
+    - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+      Amount: 600
+    UnlocksAtLevel: 0
+  - Label: x2
+    Cost:
+      Costs:
+      - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+        Amount: 1020
+    WinRewards:
+    - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+      Amount: 2
+    - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+      Amount: 800
+    UnlocksAtLevel: 0
+  - Label: x4
+    Cost:
+      Costs:
+      - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+        Amount: 1300
+    WinRewards:
+    - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
+      Amount: 4
+    - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
+      Amount: 1200
+    UnlocksAtLevel: 0

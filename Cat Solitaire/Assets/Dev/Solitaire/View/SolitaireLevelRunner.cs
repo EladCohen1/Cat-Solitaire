@@ -1,14 +1,19 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Runs one solitaire level: builds the board from the level's rule asset, lets
-/// the player play it, and hands exactly one <see cref="LevelResult"/> back to
-/// GameFlow. This is the Solitaire assembly's only point of contact with the meta
-/// game, and it never touches the wallet — GameFlow owns the money.
+/// Runs one solitaire level: builds the board from the level's rule asset, lets the
+/// player play it, and hands exactly one <see cref="LevelResult"/> back to GameFlow.
+/// This is the Solitaire assembly's only point of contact with the meta game, and it
+/// never touches the wallet — GameFlow owns the money.
+///
+/// The board is laid out in world space in front of the level camera, so cards are
+/// real objects that can be tweened, flipped and lit. That camera needs a
+/// PhysicsRaycaster on it or no card will ever answer a tap.
 /// </summary>
 public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 {
@@ -17,26 +22,41 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     [SerializeField] SolitaireLevelDef _fallbackRules;
 
     [Header("Board")]
-    [Tooltip("Left empty, the runner builds a full-screen board root under itself.")]
-    [SerializeField] RectTransform _boardRoot;
-    [SerializeField] float _columnSpacing = 160f;   // pixels per card width in the layout
-    [SerializeField] float _rowSpacing = 210f;      // pixels per card height in the layout
-    [SerializeField] Vector2 _boardOffset = new Vector2(0f, 140f);
-    [SerializeField] Vector2 _stockPosition = new Vector2(-260f, -330f);
-    [SerializeField] Vector2 _wastePosition = new Vector2(0f, -330f);
+    [SerializeField] SolitaireCardView _cardPrefab;
+    [Tooltip("Cards are parented here. Left empty, the runner's own transform is used.")]
+    [SerializeField] Transform _boardRoot;
+    [SerializeField] Transform _stockAnchor;
+    [SerializeField] Transform _wasteAnchor;
+
+    [Tooltip("World distance between neighbouring slots, across and down the layout.")]
+    [SerializeField] Vector2 _slotSpacing = new Vector2(1.1f, 1.5f);
+
+    [Tooltip("How much nearer the camera each row sits, so lower rows overlap the peaks.")]
+    [SerializeField] float _rowDepth = 0.02f;
+
+    [Header("HUD")]
+    [SerializeField] TMP_Text _scoreLabel;
+    [SerializeField] TMP_Text _stockCountLabel;
+    [SerializeField] TMP_Text _messageLabel;
+    [SerializeField] Button _stockButton;
+    [SerializeField] Button _quitButton;
 
     [Header("Flow")]
     [Tooltip("How long the finished board stays on screen before the result goes back to the hub.")]
     [SerializeField] float _endOfRoundPause = 0.9f;
+
+    /// <summary>Raised once the board exists, for a deal animation to take over.</summary>
+    public event Action Dealt;
+
+    /// <summary>Raised with the slot a card just left, for a flight to the waste pile.</summary>
+    public event Action<int> CardPlayed;
 
     Action<LevelResult> _onComplete;
     SolitaireGame _game;
     SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
     SolitaireCardView[] _cardViews;
     SolitaireCardView _wasteView;
-    Button _stockButton;
-    Image _stockBack;
-    TMP_Text _stockLabel, _scoreLabel, _messageLabel;
+    SolitaireCardView _stockView;
     int _targetScore;
     bool _roundOver;
 
@@ -67,6 +87,12 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     /// <summary>Wire this to a quit button. Quitting pays nothing, by GameFlow's rules.</summary>
     public void Quit() => Finish(LevelOutcome.Quit);
 
+    /// <summary>Wire this to the draw pile if you would rather not use a collider on it.</summary>
+    public void Draw()
+    {
+        if (_game != null) _game.TryDraw();
+    }
+
     void Build(SolitaireLevelDef rules)
     {
         _targetScore = rules != null ? rules.TargetScore : 0;
@@ -80,15 +106,19 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
         BuildBoard(layout);
         BuildPiles();
-        BuildHud();
+
+        if (_stockButton != null) _stockButton.onClick.AddListener(Draw);
+        if (_quitButton != null) _quitButton.onClick.AddListener(Quit);
 
         _game.Changed += Refresh;
         Refresh();
+
+        Dealt?.Invoke();
     }
 
     SolitaireBoardLayout DefaultLayout()
     {
-        // Left in memory only — it is never saved as an asset, so it is ours to destroy.
+        // Lives in memory only — never saved as an asset, so it is ours to destroy.
         _runtimeLayout = ScriptableObject.CreateInstance<SolitaireBoardLayout>();
         _runtimeLayout.name = "Classic Tri-Peaks (runtime)";
         return _runtimeLayout;
@@ -96,10 +126,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void BuildBoard(SolitaireBoardLayout layout)
     {
-        if (_boardRoot == null) _boardRoot = SolitaireUi.Stretch("Board", transform);
-
-        for (var i = _boardRoot.childCount - 1; i >= 0; i--)
-            Destroy(_boardRoot.GetChild(i).gameObject);
+        if (_cardPrefab == null) throw new InvalidOperationException($"{name}: no card prefab assigned.");
+        if (_boardRoot == null) _boardRoot = transform;
 
         var slots = layout.EffectiveSlots;
         var center = LayoutCenter(slots);
@@ -108,10 +136,10 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
         for (var i = 0; i < slots.Count; i++)
         {
-            // Slots come out of the layout peaks first, so the lower rows are created
-            // last and draw on top of the cards they overlap — which is what blocks them.
-            var view = SolitaireCardView.Create(_boardRoot, $"Card {i}", i);
-            view.SetPosition(ToPixels(slots[i].Position - center) + _boardOffset);
+            var view = Instantiate(_cardPrefab, _boardRoot);
+            view.name = $"Card {i}";
+            view.Bind(i);
+            view.transform.localPosition = PositionOf(slots[i].Position - center);
             view.Clicked += OnCardClicked;
 
             _cardViews[i] = view;
@@ -120,83 +148,68 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void BuildPiles()
     {
-        _stockBack = SolitaireUi.Panel("Stock", _boardRoot, SolitaireCardView.CardSize, new Color(0.24f, 0.35f, 0.62f));
-        ((RectTransform)_stockBack.transform).anchoredPosition = _stockPosition;
+        _wasteView = Instantiate(_cardPrefab, _wasteAnchor != null ? _wasteAnchor : _boardRoot);
+        _wasteView.name = "Waste";
+        _wasteView.Bind(-1);
+        _wasteView.transform.localPosition = Vector3.zero;
+        _wasteView.Freeze();
 
-        _stockButton = _stockBack.gameObject.AddComponent<Button>();
-        _stockButton.targetGraphic = _stockBack;
-        _stockButton.onClick.AddListener(OnStockClicked);
-
-        _stockLabel = SolitaireUi.Label("Count", _stockBack.transform, string.Empty, 56f, Color.white);
-        var countRect = (RectTransform)_stockLabel.transform;
-        countRect.anchorMin = Vector2.zero;
-        countRect.anchorMax = Vector2.one;
-        countRect.offsetMin = Vector2.zero;
-        countRect.offsetMax = Vector2.zero;
-
-        _wasteView = SolitaireCardView.Create(_boardRoot, "Waste", -1);
-        _wasteView.SetPosition(_wastePosition);
+        // The draw pile is a face-down card you tap, so a board needs no UI to be played.
+        _stockView = Instantiate(_cardPrefab, _stockAnchor != null ? _stockAnchor : _boardRoot);
+        _stockView.name = "Stock";
+        _stockView.Bind(-1);
+        _stockView.transform.localPosition = Vector3.zero;
+        _stockView.Clicked += OnStockClicked;
     }
 
-    void BuildHud()
-    {
-        var hud = SolitaireUi.Stretch("HUD", transform);
+    /// <summary>
+    /// Layout coordinates are in card widths and heights. Rows nearer the bottom are
+    /// also nearer the camera, which is what makes a peak look covered.
+    /// </summary>
+    Vector3 PositionOf(Vector2 slot) =>
+        new Vector3(slot.x * _slotSpacing.x, slot.y * _slotSpacing.y, slot.y * _rowDepth);
 
-        _scoreLabel = SolitaireUi.Label("Score", hud, string.Empty, 48f, Color.white, TextAlignmentOptions.TopLeft);
-        TopBar((RectTransform)_scoreLabel.transform, top: 40f, height: 60f);
-
-        _messageLabel = SolitaireUi.Label("Message", hud, string.Empty, 64f, Color.white, TextAlignmentOptions.Top);
-        TopBar((RectTransform)_messageLabel.transform, top: 120f, height: 80f);
-
-        var quit = SolitaireUi.Button("Quit", hud, "Quit", new Vector2(180f, 80f));
-        var quitRect = (RectTransform)quit.transform;
-        quitRect.anchorMin = quitRect.anchorMax = new Vector2(1f, 1f);
-        quitRect.pivot = new Vector2(1f, 1f);
-        quitRect.anchoredPosition = new Vector2(-40f, -40f);
-        quit.onClick.AddListener(Quit);
-    }
-
-    /// <summary>Pins a label across the top of the screen, inset by a 40px margin.</summary>
-    static void TopBar(RectTransform rect, float top, float height)
-    {
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.sizeDelta = new Vector2(-80f, height);
-        rect.anchoredPosition = new Vector2(0f, -top);
-    }
+    void OnStockClicked(SolitaireCardView _) => Draw();
 
     void OnCardClicked(SolitaireCardView view)
     {
         if (_game == null || view.Slot < 0) return;
 
-        _game.TryPlay(view.Slot);   // an illegal tap is simply ignored
-    }
-
-    void OnStockClicked()
-    {
-        if (_game == null) return;
-
-        _game.TryDraw();
+        if (_game.TryPlay(view.Slot)) CardPlayed?.Invoke(view.Slot);
     }
 
     void Refresh()
     {
         for (var i = 0; i < _cardViews.Length; i++)
         {
-            if (_game.IsCleared(i)) _cardViews[i].Hide();
-            else _cardViews[i].Show(_game.CardAt(i), _game.IsPlayable(i), _game.IsBlocked(i));
+            if (_game.IsCleared(i))
+            {
+                _cardViews[i].Hide();
+                continue;
+            }
+
+            // Tri-peaks deals the peaks face down: a card turns over the moment the
+            // last card lying on it is taken, which is the same test that decides
+            // whether it can be played at all.
+            var blocked = _game.IsBlocked(i);
+            _cardViews[i].Show(_game.CardAt(i), faceUp: !blocked, playable: _game.IsPlayable(i), blocked: blocked);
         }
 
-        _wasteView.Show(_game.Active, playable: false, blocked: false);
+        _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
         _wasteView.Freeze();
 
-        _stockLabel.text = _game.StockRemaining.ToString();
-        _stockButton.interactable = _game.StockRemaining > 0 && _game.Status == SolitaireStatus.Playing;
+        // Face down, so what the card carries never shows — the draw pile is a back.
+        if (_game.StockRemaining > 0)
+            _stockView.Show(_game.Active, faceUp: false, playable: false, blocked: false);
+        else
+            _stockView.Hide();
 
-        _scoreLabel.text = _game.Combo > 1
-            ? $"{_game.Score}   x{_game.Combo}"
-            : _game.Score.ToString();
+        if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
+        if (_stockButton != null)
+            _stockButton.interactable = _game.StockRemaining > 0 && _game.Status == SolitaireStatus.Playing;
+
+        if (_scoreLabel != null)
+            _scoreLabel.text = _game.Combo > 1 ? $"{_game.Score}   x{_game.Combo}" : _game.Score.ToString();
 
         if (_game.Status != SolitaireStatus.Playing && !_roundOver) OnRoundOver();
     }
@@ -207,13 +220,15 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _game.Changed -= Refresh;
 
         foreach (var view in _cardViews) view.Freeze();
-        _stockButton.interactable = false;
+        if (_stockView != null) _stockView.Freeze();
+        if (_stockButton != null) _stockButton.interactable = false;
 
         var won = _game.Status == SolitaireStatus.Won && _game.Score >= _targetScore;
 
-        _messageLabel.text = _game.Status == SolitaireStatus.Won
-            ? won ? "Board cleared!" : $"Cleared, but {_targetScore} points were needed"
-            : "No moves left";
+        if (_messageLabel != null)
+            _messageLabel.text = _game.Status == SolitaireStatus.Won
+                ? won ? "Board cleared!" : $"Cleared, but {_targetScore} points were needed"
+                : "No moves left";
 
         StartCoroutine(FinishAfterPause(won ? LevelOutcome.Win : LevelOutcome.Lose));
     }
@@ -239,14 +254,11 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         callback(new LevelResult
         {
             Outcome = outcome,
-            Score = _game != null ? _game.Score : 0
+            Score = _game != null ? _game.Score : 0,
         });
     }
 
-    Vector2 ToPixels(Vector2 layoutPosition) =>
-        new Vector2(layoutPosition.x * _columnSpacing, layoutPosition.y * _rowSpacing);
-
-    static Vector2 LayoutCenter(System.Collections.Generic.IReadOnlyList<SolitaireBoardLayout.Slot> slots)
+    static Vector2 LayoutCenter(IReadOnlyList<SolitaireBoardLayout.Slot> slots)
     {
         var min = slots[0].Position;
         var max = slots[0].Position;

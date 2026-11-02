@@ -4,14 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Owns the hub → level → hub round trip, and it is the only place money changes
-/// hands around a level: it charges the entry cost before loading and grants the
-/// rewards after the result comes back. The level itself never touches the wallet.
-///
-/// Lives on the same persistent GameObject as <see cref="GameBootstrap"/> so it
-/// survives while the level scene is loaded.
-/// </summary>
+
 public class GameFlow : MonoBehaviour
 {
     public static GameFlow Instance { get; private set; }
@@ -32,7 +25,9 @@ public class GameFlow : MonoBehaviour
         Instance = this;
     }
 
-    public void PlayLevel(LevelDef level)
+    public void PlayLevel(LevelDef level) => PlayLevel(level, null);
+    
+    public void PlayLevel(LevelDef level, WagerTier wager)
     {
         if (level == null)
         {
@@ -42,22 +37,31 @@ public class GameFlow : MonoBehaviour
 
         if (IsLevelRunning) return;
 
+        var price = PriceOf(level, wager);
+
         var wallet = GameBootstrap.Instance.Wallet;
-        if (!wallet.CanAfford(level.EntryCost))
+        if (!wallet.CanAfford(price))
         {
-            EntryCostRejected?.Invoke(level.EntryCost);
+            EntryCostRejected?.Invoke(price);
             return;
         }
 
-        StartCoroutine(RunLevel(level));
+        StartCoroutine(RunLevel(level, wager));
     }
+    
+    public static Price PriceOf(LevelDef level, WagerTier wager) =>
+        wager != null ? wager.Cost : level.EntryCost;
+    
+    public static CurrencyAmount[] WinRewardsOf(LevelDef level, WagerTier wager) =>
+        WagerLadderDef.RewardsOf(wager, level);
 
-    IEnumerator RunLevel(LevelDef level)
+    IEnumerator RunLevel(LevelDef level, WagerTier wager)
     {
         IsLevelRunning = true;
         var wallet = GameBootstrap.Instance.Wallet;
+        var price = PriceOf(level, wager);
 
-        if (!wallet.TrySpend(level.EntryCost))
+        if (!wallet.TrySpend(price))
         {
             IsLevelRunning = false;
             yield break;
@@ -73,7 +77,7 @@ public class GameFlow : MonoBehaviour
         {
             // Never keep the player's money for a level we failed to start.
             Debug.LogError($"No ILevelRunner found in scene '{_levelSceneName}'. Refunding entry cost.", this);
-            wallet.Grant(level.EntryCost?.Costs);
+            wallet.Grant(price?.Costs);
 
             yield return UnloadAndRestore(levelScene, hiddenHubRoots);
             IsLevelRunning = false;
@@ -86,7 +90,7 @@ public class GameFlow : MonoBehaviour
 
         while (!finished) yield return null;
 
-        var rewards = ResolveRewards(level, result.Outcome);
+        var rewards = ResolveRewards(level, wager, result.Outcome);
         wallet.Grant(rewards);
 
         if (result.Outcome == LevelOutcome.Win)
@@ -98,19 +102,16 @@ public class GameFlow : MonoBehaviour
         LevelFinished?.Invoke(level, result, rewards);
     }
 
-    static CurrencyAmount[] ResolveRewards(LevelDef level, LevelOutcome outcome)
+    static CurrencyAmount[] ResolveRewards(LevelDef level, WagerTier wager, LevelOutcome outcome)
     {
         switch (outcome)
         {
-            case LevelOutcome.Win: return level.WinRewards;
+            case LevelOutcome.Win: return WinRewardsOf(level, wager);
             case LevelOutcome.Lose: return level.LoseRewards;
             default: return Array.Empty<CurrencyAmount>();   // quitting pays nothing
         }
     }
-
-    /// <summary>
-    /// Found through the interface in Core, so Meta needs no reference to the Solitaire assembly.
-    /// </summary>
+    
     static ILevelRunner FindRunner(Scene scene)
     {
         if (!scene.IsValid()) return null;

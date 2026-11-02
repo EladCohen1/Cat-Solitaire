@@ -144,6 +144,18 @@ PrefabInstance:
       propertyPath: m_sharedMaterial
       value: 
       objectReference: {fileID: 1056132167693008891, guid: da224a7f54f86b54aad51f3d802e3e2d, type: 2}
+    - target: {fileID: 5618304500563959907, guid: 6e027b96e7d80cf44910cbe696062743, type: 3}
+      propertyPath: m_Type
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5618304500563959907, guid: 6e027b96e7d80cf44910cbe696062743, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: -1889346055, guid: b7afbb96a18a83a46900e34d1f4475e7, type: 3}
+    - target: {fileID: 5618304500563959907, guid: 6e027b96e7d80cf44910cbe696062743, type: 3}
+      propertyPath: m_Color.a
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8641796156304039180, guid: 6e027b96e7d80cf44910cbe696062743, type: 3}
       propertyPath: m_Pivot.x
       value: 0

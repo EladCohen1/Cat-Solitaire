@@ -1,7 +1,7 @@
 using UnityEngine;
 using System;
 
-public class Wallet
+public class Wallet : ILevelPurse
 {
     readonly PlayerProfile _profile;
     public event Action<CurrencyDef> Changed;

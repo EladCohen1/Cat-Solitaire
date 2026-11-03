@@ -5,6 +5,10 @@ using UnityEngine.UI;
 /// <summary>
 /// Displays one currency balance. The same prefab serves every currency —
 /// drop it twice and point one at Coins and one at Stars.
+///
+/// It also sits in the level scene, which can be opened and played on its own with
+/// no game running behind it. That is not a broken scene, so it leaves the authored
+/// number where it is and says so once, rather than throwing on the way in.
 /// </summary>
 public class CurrencyHudView : MonoBehaviour
 {
@@ -19,6 +23,14 @@ public class CurrencyHudView : MonoBehaviour
         if (_currency == null)
         {
             Debug.LogError($"{name}: no CurrencyDef assigned.", this);
+            enabled = false;
+            return;
+        }
+
+        if (GameBootstrap.Instance == null)
+        {
+            Debug.Log($"{name}: no game running, so the {_currency.name} counter is " +
+                      "showing whatever it was drawn with.", this);
             enabled = false;
             return;
         }
@@ -44,7 +56,9 @@ public class CurrencyHudView : MonoBehaviour
 
     void Refresh()
     {
+        // Grouped, because a six figure balance is unreadable without it and the
+        // counter is drawn wide enough to expect it.
         if (_amountLabel != null)
-            _amountLabel.text = _wallet.Get(_currency).ToString();
+            _amountLabel.text = _wallet.Get(_currency).ToString("N0");
     }
 }

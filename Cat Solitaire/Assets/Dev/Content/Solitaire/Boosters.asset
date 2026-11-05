@@ -20,7 +20,7 @@ MonoBehaviour:
     Costs:
     - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
       Amount: 800
-  StreakLength: 4
+  StreakLength: 5
   StreakReward:
   - Currency: {fileID: 11400000, guid: 71ffede8f9b127b4c991dc71595c0716, type: 2}
     Amount: 250

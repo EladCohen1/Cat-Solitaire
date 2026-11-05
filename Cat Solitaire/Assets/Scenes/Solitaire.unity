@@ -265,7 +265,7 @@ MonoBehaviour:
   _boardRoot: {fileID: 1841329230}
   _stockAnchor: {fileID: 614767321}
   _wasteAnchor: {fileID: 176644256}
-  _slotSpacing: {x: 1.4, y: 0.9}
+  _slotSpacing: {x: 1.4, y: 2}
   _rowDepth: 0.02
   _scoreLabel: {fileID: 0}
   _stockCountLabel: {fileID: 0}

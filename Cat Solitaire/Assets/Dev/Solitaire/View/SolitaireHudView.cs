@@ -31,8 +31,14 @@ public class SolitaireHudView : MonoBehaviour
     [SerializeField] GameObject _wildcardArmedMarker;
 
     [Header("Run meter")]
-    [Tooltip("One per notch, in order. The meter fills left to right and wraps when it pays.")]
+    [Tooltip("One per notch, left to right. Left empty, the notches are found under the group " +
+             "named below — they sit inside the HUD prefab, so there is nothing in the scene to " +
+             "drag onto this field.")]
     [SerializeField] Toggle[] _notches;
+
+    [Tooltip("The object laying the notches out. Its children are used, in the order it lays " +
+             "them out, when nothing is wired above.")]
+    [SerializeField] string _notchGroupName = "NotchGroup";
 
     [Tooltip("Flashed up when a run pays out.")]
     [SerializeField] GameObject _bonusBanner;
@@ -45,6 +51,7 @@ public class SolitaireHudView : MonoBehaviour
     [SerializeField] TMP_Text _stockCountLabel;
 
     Coroutine _banner;
+    bool _meterChecked;
 
     void Awake()
     {
@@ -61,8 +68,33 @@ public class SolitaireHudView : MonoBehaviour
         if (_wildcardButton != null) _wildcardButton.onClick.AddListener(_runner.BuyWildcard);
         if (_quitButton != null) _quitButton.onClick.AddListener(_runner.Quit);
 
+        if (_notches == null || _notches.Length == 0) _notches = FindNotches();
+
         _runner.Changed += Refresh;
         _runner.StreakPaid += ShowBonus;
+    }
+
+    /// <summary>
+    /// The notches live inside the HUD prefab, so a field in the scene cannot point at
+    /// them. They are found by the group that lays them out instead, which also hands
+    /// them over in the order it draws them — left to right, the order they fill in.
+    /// </summary>
+    Toggle[] FindNotches()
+    {
+        if (string.IsNullOrEmpty(_notchGroupName)) return System.Array.Empty<Toggle>();
+
+        // Inactive included: the panel may well start hidden.
+        var toggles = FindObjectsByType<Toggle>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        foreach (var toggle in toggles)
+        {
+            var group = toggle.transform.parent;
+            if (group == null || group.name != _notchGroupName) continue;
+
+            return group.GetComponentsInChildren<Toggle>(includeInactive: true);
+        }
+
+        return System.Array.Empty<Toggle>();
     }
 
     void Start()
@@ -75,6 +107,8 @@ public class SolitaireHudView : MonoBehaviour
     void Refresh()
     {
         if (_runner == null) return;
+
+        CheckTheMeterCanReadTheRun();
 
         ShowPrice(_undoPriceLabel, _runner.UndoPrice);
         ShowPrice(_wildcardPriceLabel, _runner.WildcardPrice);
@@ -90,8 +124,8 @@ public class SolitaireHudView : MonoBehaviour
     }
 
     /// <summary>
-    /// Lights one notch per card in the current run. A meter with more notches than
-    /// the run needs leaves the spares dark rather than guessing at a scale.
+    /// Lights one notch per card in the current run. Set without notifying, because
+    /// these are pips being drawn, not switches being thrown.
     /// </summary>
     void FillMeter()
     {
@@ -101,7 +135,30 @@ public class SolitaireHudView : MonoBehaviour
 
         for (var i = 0; i < _notches.Length; i++)
             if (_notches[i] != null)
-                _notches[i].isOn = i < lit;
+                _notches[i].SetIsOnWithoutNotify(i < lit);
+    }
+
+    /// <summary>
+    /// A meter with the wrong number of notches cannot show the run honestly: it either
+    /// pays before it looks full or fills and sits there. Said once, when the round has
+    /// started and the run length is known.
+    /// </summary>
+    void CheckTheMeterCanReadTheRun()
+    {
+        if (_meterChecked || _runner.StreakLength <= 0) return;
+        _meterChecked = true;
+
+        if (_notches == null || _notches.Length == 0)
+        {
+            Debug.LogWarning($"{name}: found no notches under '{_notchGroupName}', so the run " +
+                             "meter will never light up.", this);
+            return;
+        }
+
+        if (_notches.Length != _runner.StreakLength)
+            Debug.LogWarning($"{name}: the meter has {_notches.Length} notches but a run pays every " +
+                             $"{_runner.StreakLength} cards. One of the two is wrong — the notches in " +
+                             "the HUD prefab, or Streak Length on the boosters asset.", this);
     }
 
     /// <summary>

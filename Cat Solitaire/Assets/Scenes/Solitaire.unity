@@ -310,7 +310,8 @@ MonoBehaviour:
   _wildcardButton: {fileID: 516828243}
   _wildcardPriceLabel: {fileID: 1361629195}
   _wildcardArmedMarker: {fileID: 0}
-  _notches:
+  _notches: []
+  _notchGroupName: NotchGroup
   - {fileID: 434749872}
   - {fileID: 1702833147}
   - {fileID: 2135104941}

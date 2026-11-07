@@ -117,6 +117,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     SolitaireGame _game;
     SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
     SolitaireCardView[] _cardViews;
+    readonly Dictionary<SolitaireCardView, Tween> _flights = new Dictionary<SolitaireCardView, Tween>();
     readonly List<SolitaireCardView> _stock = new List<SolitaireCardView>();
     readonly List<SolitaireCardView> _waste = new List<SolitaireCardView>();
     bool[] _onBoard;
@@ -535,7 +536,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
         if (turnOver) card.TurnOver(true);
 
-        FlyTo(card.transform, WasteSlot(_waste.Count - 1));
+        FlyTo(card, WasteSlot(_waste.Count - 1));
     }
 
     void SendToStock(SolitaireCardView card)
@@ -546,7 +547,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
         card.transform.SetParent(StockRoot, worldPositionStays: true);
 
-        FlyTo(card.transform, StockSlot(_stock.Count - 1));
+        FlyTo(card, StockSlot(_stock.Count - 1));
     }
 
     void SendBackToBoard(int slot)
@@ -556,21 +557,32 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
         card.transform.SetParent(_boardRoot, worldPositionStays: true);
 
-        FlyTo(card.transform, PositionOf(slots[slot].Position - center));
+        FlyTo(card, PositionOf(slots[slot].Position - center));
     }
 
-    void FlyTo(Transform card, Vector3 to)
+    /// <summary>
+    /// Sends a card across the table, calling off only a flight it was already on.
+    ///
+    /// Killing every tween on the card instead would take its turn with it: a card
+    /// drawn off the pile is told to turn over and then told where to go, and the
+    /// going would stop the turning, so it would arrive still face down. Each card's
+    /// flight is kept hold of, and only that is called off.
+    /// </summary>
+    void FlyTo(SolitaireCardView card, Vector3 to)
     {
-        DOTween.Kill(card);
+        if (_flights.TryGetValue(card, out var already) && already != null && already.IsActive())
+            already.Kill();
 
         if (_toWasteSeconds <= 0f)
         {
-            card.localPosition = to;
+            card.transform.localPosition = to;
+            _flights.Remove(card);
             return;
         }
 
-        if (_toWasteArc > 0f) card.DOLocalJump(to, _toWasteArc, 1, _toWasteSeconds).SetEase(_toWasteEase);
-        else card.DOLocalMove(to, _toWasteSeconds).SetEase(_toWasteEase);
+        _flights[card] = _toWasteArc > 0f
+            ? card.transform.DOLocalJump(to, _toWasteArc, 1, _toWasteSeconds).SetEase(_toWasteEase)
+            : (Tween)card.transform.DOLocalMove(to, _toWasteSeconds).SetEase(_toWasteEase);
     }
 
     /// <summary>

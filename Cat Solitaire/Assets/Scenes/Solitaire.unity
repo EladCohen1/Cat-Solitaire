@@ -271,7 +271,7 @@ MonoBehaviour:
   _stockCountLabel: {fileID: 0}
   _messageLabel: {fileID: 0}
   _stockButton: {fileID: 0}
-  _quitButton: {fileID: 0}
+  _quitButton: {fileID: 689988442}
   _endOfRoundPause: 0.9
 --- !u!224 &241603000
 RectTransform:
@@ -310,13 +310,13 @@ MonoBehaviour:
   _wildcardButton: {fileID: 516828243}
   _wildcardPriceLabel: {fileID: 1361629195}
   _wildcardArmedMarker: {fileID: 0}
-  _notches: []
-  _notchGroupName: NotchGroup
+  _notches:
   - {fileID: 434749872}
   - {fileID: 1702833147}
   - {fileID: 2135104941}
   - {fileID: 1119519305}
   - {fileID: 416645967}
+  _notchGroupName: NotchGroup
   _bonusBanner: {fileID: 285450065}
   _bannerSeconds: 1.2
   _quitButton: {fileID: 0}
@@ -399,6 +399,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 217693310511780969, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 217693310511780969, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 217693310511780969, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 217693310511780969, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 659440900834234201, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -459,6 +475,38 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2332650075391662493, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2332650075391662493, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2332650075391662493, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2332650075391662493, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3636891183195830862, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3636891183195830862, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3636891183195830862, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3636891183195830862, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4670969447413925504, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
       propertyPath: m_SizeDelta.x
       value: 0
@@ -467,6 +515,22 @@ PrefabInstance:
       propertyPath: m_Camera
       value: 
       objectReference: {fileID: 1469166437}
+    - target: {fileID: 5595971749735848582, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5595971749735848582, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5595971749735848582, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5595971749735848582, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6417694560657736449, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -483,11 +547,38 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7704585408973302828, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7704585408973302828, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7704585408973302828, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7704585408973302828, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+--- !u!114 &689988442 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6489757266949547592, guid: 333abc55eac73af4b959102bd08c666d, type: 3}
+  m_PrefabInstance: {fileID: 689988441}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
 --- !u!114 &981405826 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1356798251428766175, guid: 333abc55eac73af4b959102bd08c666d, type: 3}

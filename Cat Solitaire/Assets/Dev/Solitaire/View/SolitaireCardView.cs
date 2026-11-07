@@ -1,34 +1,8 @@
 using System;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-/// <summary>
-/// One card in the world: the card mesh with the atlas material on it. Picking a
-/// face is two floats on the shader.
-///
-/// Card.fbx is two mesh objects back to back, Card_Front and Card_Back, each with one
-/// material of its own — so the face lives on one renderer and the back on another.
-/// The front is found by material name rather than assumed, because a card built the
-/// other way (one mesh, two submeshes) is just as likely and the slot order is the
-/// mesh's business either way.
-///
-/// Only the front is ever written: the back art is whatever CardBack was authored
-/// with, and a face-down card is simply a card turned around. Writing a back cell
-/// into the front material would leave the real back side showing from behind and
-/// give the card two backs.
-///
-/// Each card gets its own copies of both materials. A MaterialPropertyBlock would be
-/// cheaper, but Shader Graph shaders under URP are SRP Batcher compatible, which
-/// keeps exposed properties in the per-material constant buffer and ignores block
-/// overrides entirely — every card would show whatever the shared material says.
-///
-/// It knows nothing about the rules — it is told what to show and it reports taps.
-/// Taps need a PhysicsRaycaster on the level camera and a 3D collider — a Collider2D
-/// is a different physics world and the raycaster will not see it.
-///
-/// An FBX drops in as a wrapper with the mesh on a child, so the renderer and the
-/// collider are looked for in children as well as here.
-/// </summary>
 public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 {
     [Tooltip("Leave empty to find the renderer carrying the card face by material name.")]
@@ -124,13 +98,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         _front = _materials[Mathf.Clamp(_frontMaterialSlot, 0, _materials.Length - 1)];
     }
-
-    /// <summary>
-    /// Works out which renderer and slot hold the readable side of the card, and
-    /// whether there is a back side to turn to. Card.fbx keeps the two sides on
-    /// separate mesh objects, but a card built as one mesh with two submeshes is just
-    /// as valid, so both the renderers and their slots are searched by material name.
-    /// </summary>
+    
     void FindParts()
     {
         if (_collider == null) _collider = GetComponentInChildren<Collider>();
@@ -157,10 +125,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
             _frontMaterialSlot = slot;
             return;
         }
-
-        // No material said it was the face. Rather than write the rank onto whatever
-        // comes first — which may well be the back — take the renderer already wired,
-        // and failing that the first one with a mesh, and say so.
+        
         if (_frontRenderer == null) _frontRenderer = FirstDrawnRenderer(renderers);
         if (_frontMaterialSlot < 0) _frontMaterialSlot = 0;
 
@@ -185,11 +150,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         return -1;
     }
-
-    /// <summary>
-    /// Loose enough that Card_Front answers to CardFront, and that a copy named
-    /// "CardFront (Instance)" still answers to it.
-    /// </summary>
+    
     static bool NameMatches(string candidate, string wanted) =>
         !string.IsNullOrEmpty(candidate) &&
         Simplify(candidate).StartsWith(Simplify(wanted), StringComparison.OrdinalIgnoreCase);
@@ -232,12 +193,16 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         if (_collider != null) _collider.enabled = !blocked;
     }
 
-    public void Hide() => gameObject.SetActive(false);
+    public void Hide()
+    {
+        
+        gameObject.SetActive(false);
+    }
 
     /// <summary>Stops the board answering taps once the round is decided.</summary>
     public void Freeze()
     {
-        if (_collider != null) _collider.enabled = false;
+        if (_collider) _collider.enabled = false;
     }
 
     public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
@@ -251,8 +216,9 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         FaceUp = faceUp;
 
         if (!_hasBackSide) return;
-
+        
         transform.localRotation = faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+
     }
 
     /// <summary>

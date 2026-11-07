@@ -13,7 +13,7 @@ public static class CurrencySlots
 
         for (var i = 0; i < slots.Length; i++)
         {
-            if (slots[i] == null) continue;
+            if (!slots[i]) continue;
 
             var used = amounts != null && i < amounts.Length && amounts[i].Currency != null;
             slots[i].gameObject.SetActive(used);
@@ -23,7 +23,7 @@ public static class CurrencySlots
             slots[i].SetInfoTextColor(color);
             slots[i].SetIconColor(Color.white);
 
-            if (amounts[i].Currency.Icon != null) slots[i].SetIcon(amounts[i].Currency.Icon);
+            if (amounts[i].Currency.Icon ) slots[i].SetIcon(amounts[i].Currency.Icon);
         }
     }
 }

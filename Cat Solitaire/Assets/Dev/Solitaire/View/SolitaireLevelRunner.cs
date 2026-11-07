@@ -56,6 +56,30 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     [Tooltip("The gap between one card turning over and the next.")]
     [SerializeField] float _delayBetweenTurns = 0.05f;
 
+    [Header("Piles")]
+    [Tooltip("How far each card in the draw pile sits from the one under it. The pile is " +
+             "one card per card left, so its thickness is what says how many remain.")]
+    [SerializeField] Vector2 _stockFan = new Vector2(0.035f, 0f);
+
+    [Tooltip("How far each card on the waste pile sits from the one under it.")]
+    [SerializeField] Vector2 _wasteFan = new Vector2(0.02f, 0.012f);
+
+    [Tooltip("How much nearer the camera each card in a pile sits, so a pile sorts back to front.")]
+    [SerializeField] float _pileDepth = 0.01f;
+
+    [Header("Playing a card")]
+    [Tooltip("How long a played card takes to reach the waste pile.")]
+    [SerializeField] float _toWasteSeconds = 0.3f;
+
+    [Tooltip("How high a played card lifts on its way over. 0 slides it flat.")]
+    [SerializeField] float _toWasteArc = 0.7f;
+
+    [SerializeField] Ease _toWasteEase = Ease.OutQuad;
+
+    [Tooltip("How many cards of the waste pile fan out before the rest sit on the same " +
+             "spot. Without a cap a long round walks the pile across the table. 0 is no cap.")]
+    [SerializeField] int _wasteStackCap = 4;
+
     [Tooltip("World distance between neighbouring slots, across and down the layout.")]
     [SerializeField] Vector2 _slotSpacing = new Vector2(1.1f, 1.5f);
 
@@ -93,8 +117,9 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     SolitaireGame _game;
     SolitaireBoardLayout _runtimeLayout;   // only when the level ships no layout of its own
     SolitaireCardView[] _cardViews;
-    SolitaireCardView _wasteView;
-    SolitaireCardView _stockView;
+    readonly List<SolitaireCardView> _stock = new List<SolitaireCardView>();
+    readonly List<SolitaireCardView> _waste = new List<SolitaireCardView>();
+    bool[] _onBoard;
     int _targetScore;
     bool _roundOver;
     Sequence _deal;
@@ -146,9 +171,6 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     /// <summary>Where the draw pile sits, for a deal to fly cards in from.</summary>
     public Transform StockAnchor => _stockAnchor;
-
-    /// <summary>The draw pile itself, for a deal to stop it being tapped mid-flight.</summary>
-    public SolitaireCardView StockView => _stockView;
 
     /// <summary>True when nothing covers this slot, so its card is turned face up.</summary>
     public bool IsRevealed(int slot) =>
@@ -267,6 +289,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         center = LayoutCenter(slots);
 
         _cardViews = new SolitaireCardView[slots.Count];
+        _onBoard = new bool[slots.Count];
         
         for (var i = 0; i < slots.Count; i++)
         {
@@ -277,6 +300,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             view.Clicked += OnCardClicked;
 
             _cardViews[i] = view;
+            _onBoard[i] = true;
         }
 
         PlacingCards();
@@ -369,20 +393,184 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _dealing = false;
     }
 
+    /// <summary>
+    /// Both piles are real cards rather than one card standing in for a pile. The draw
+    /// pile gets one card per card left in it, so its thickness is what tells the
+    /// player how many remain and no counter has to say so; the waste gets the card
+    /// the round starts face up on, and every card played lands on top of it.
+    /// </summary>
     void BuildPiles()
     {
-        _wasteView = Instantiate(_cardPrefab, _wasteAnchor != null ? _wasteAnchor : _boardRoot);
-        _wasteView.name = "Waste";
-        _wasteView.Bind(-1);
-        _wasteView.transform.localPosition = Vector3.zero;
-        _wasteView.Freeze();
+        var onTheWaste = NewPileCard(WasteRoot, "Waste 0");
+        onTheWaste.Show(_game.Active, faceUp: true, playable: false, blocked: false);
+        _waste.Add(onTheWaste);
+        LayOutPile(_waste, WasteSlot);
+        OnlyTopAnswersTaps(_waste, topAnswersTaps: false);
 
-        // The draw pile is a face-down card you tap, so a board needs no UI to be played.
-        _stockView = Instantiate(_cardPrefab, _stockAnchor != null ? _stockAnchor : _boardRoot);
-        _stockView.name = "Stock";
-        _stockView.Bind(-1);
-        _stockView.transform.localPosition = Vector3.zero;
-        _stockView.Clicked += OnStockClicked;
+        for (var i = 0; i < _game.StockRemaining; i++)
+        {
+            var card = NewPileCard(StockRoot, $"Stock {i}");
+            card.TurnNow(false);
+            card.Clicked += OnStockClicked;
+            _stock.Add(card);
+        }
+
+        LayOutPile(_stock, StockSlot);
+        OnlyTopAnswersTaps(_stock, topAnswersTaps: true);
+    }
+
+    Transform WasteRoot => _wasteAnchor != null ? _wasteAnchor : _boardRoot;
+    Transform StockRoot => _stockAnchor != null ? _stockAnchor : _boardRoot;
+
+    SolitaireCardView NewPileCard(Transform parent, string called)
+    {
+        var card = Instantiate(_cardPrefab, parent);
+        card.name = called;
+        card.Bind(-1);                      // not a board slot: taps mean draw, or nothing
+        card.transform.localPosition = Vector3.zero;
+
+        return card;
+    }
+
+    /// <summary>
+    /// Lays a pile out, each card a little along from and a little in front of the one
+    /// under it. Only the top of a pile can be tapped, and only when it is a pile you
+    /// are allowed to tap.
+    /// </summary>
+    void LayOutPile(List<SolitaireCardView> pile, System.Func<int, Vector3> slotOf)
+    {
+        for (var i = 0; i < pile.Count; i++)
+            pile[i].transform.localPosition = slotOf(i);
+    }
+
+    /// <summary>
+    /// Kept apart from laying a pile out, which sets positions and would snap a card
+    /// still flying back to the pile straight into place.
+    /// </summary>
+    void OnlyTopAnswersTaps(List<SolitaireCardView> pile, bool topAnswersTaps)
+    {
+        for (var i = 0; i < pile.Count; i++)
+            pile[i].AnswerTaps(topAnswersTaps && i == pile.Count - 1);
+    }
+
+    /// <summary>
+    /// Where the card at this depth in a pile sits. The waste is capped, or a long
+    /// round would walk it across the table; the draw pile is not, because its
+    /// thickness is the whole point of it.
+    /// </summary>
+    Vector3 PileSlot(int index, Vector2 fan, int cap)
+    {
+        if (cap > 0) index = Mathf.Min(index, cap);
+
+        return new Vector3(index * fan.x, index * fan.y, -index * _pileDepth);
+    }
+
+    Vector3 WasteSlot(int index) => PileSlot(index, _wasteFan, _wasteStackCap);
+    Vector3 StockSlot(int index) => PileSlot(index, _stockFan, 0);
+
+    /// <summary>
+    /// Brings what is on screen back in line with what the rules say, moving whole
+    /// cards between the board and the piles rather than redrawing a stand-in.
+    ///
+    /// It works from the difference between the two rather than from what just
+    /// happened, so taking a move back is the same problem as making one and needs no
+    /// cases of its own.
+    /// </summary>
+    void ReconcilePiles()
+    {
+        // Drawn: the rules have fewer cards left in the pile than the pile is showing.
+        while (_stock.Count > _game.StockRemaining)
+        {
+            var drawn = TakeTop(_stock);
+
+            // Told what it is while still turned away: a card off the pile has never
+            // been shown anything, so without this it turns over as whatever its
+            // material was last left with.
+            drawn.Show(_game.Active, faceUp: false, playable: false, blocked: false);
+
+            SendToWaste(drawn, turnOver: true);
+        }
+
+        // A draw taken back: the rules have more than the pile shows, so the card on
+        // top of the waste goes back where it came from. The waste always keeps one.
+        while (_stock.Count < _game.StockRemaining && _waste.Count > 1)
+            SendToStock(TakeTop(_waste));
+
+        for (var slot = 0; slot < _cardViews.Length; slot++)
+        {
+            var cleared = _game.IsCleared(slot);
+
+            if (cleared && _onBoard[slot])
+            {
+                _onBoard[slot] = false;
+                _waste.Remove(_cardViews[slot]);
+                SendToWaste(_cardViews[slot], turnOver: false);
+            }
+            else if (!cleared && !_onBoard[slot])
+            {
+                _onBoard[slot] = true;
+                SendBackToBoard(slot);
+            }
+        }
+    }
+
+    static SolitaireCardView TakeTop(List<SolitaireCardView> pile)
+    {
+        var card = pile[pile.Count - 1];
+        pile.RemoveAt(pile.Count - 1);
+
+        return card;
+    }
+
+    void SendToWaste(SolitaireCardView card, bool turnOver)
+    {
+        if (_waste.Count > 0) _waste[_waste.Count - 1].Freeze();
+
+        card.Freeze();
+        _waste.Add(card);
+
+        // Reparented keeping its place on screen, so the flight starts where the card
+        // is rather than jumping to the pile first.
+        card.transform.SetParent(WasteRoot, worldPositionStays: true);
+
+        if (turnOver) card.TurnOver(true);
+
+        FlyTo(card.transform, WasteSlot(_waste.Count - 1));
+    }
+
+    void SendToStock(SolitaireCardView card)
+    {
+        card.Freeze();
+        card.TurnOver(false);
+        _stock.Add(card);
+
+        card.transform.SetParent(StockRoot, worldPositionStays: true);
+
+        FlyTo(card.transform, StockSlot(_stock.Count - 1));
+    }
+
+    void SendBackToBoard(int slot)
+    {
+        var card = _cardViews[slot];
+        _waste.Remove(card);
+
+        card.transform.SetParent(_boardRoot, worldPositionStays: true);
+
+        FlyTo(card.transform, PositionOf(slots[slot].Position - center));
+    }
+
+    void FlyTo(Transform card, Vector3 to)
+    {
+        DOTween.Kill(card);
+
+        if (_toWasteSeconds <= 0f)
+        {
+            card.localPosition = to;
+            return;
+        }
+
+        if (_toWasteArc > 0f) card.DOLocalJump(to, _toWasteArc, 1, _toWasteSeconds).SetEase(_toWasteEase);
+        else card.DOLocalMove(to, _toWasteSeconds).SetEase(_toWasteEase);
     }
 
     /// <summary>
@@ -402,13 +590,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void Refresh()
     {
+        // Whole cards move between the board and the piles; this is what notices.
+        ReconcilePiles();
+
         for (var i = 0; i < _cardViews.Length; i++)
         {
-            if (_game.IsCleared(i))
-            {
-                _cardViews[i].Hide();
-                continue;
-            }
+            // A played card is not hidden any more, it is lying on the waste pile
+            // being itself, so there is nothing here left to say about it.
+            if (!_onBoard[i]) continue;
 
             // Tri-peaks deals the peaks face down: a card turns over the moment the
             // last card lying on it is taken, which is the same test that decides
@@ -425,23 +614,16 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
                                blocked: blocked);
         }
 
-        _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
-        _wasteView.Freeze();
-
-        // Face down, so what the card carries never shows — the draw pile is a back.
-        if (_game.StockRemaining > 0)
-            _stockView.Show(_game.Active, faceUp: false, playable: false, blocked: false);
-        else
-            _stockView.Hide();
+        // Neither pile is drawn here. Each is made of the cards themselves, already
+        // showing their own faces, so the only thing to keep right is which card on
+        // the draw pile can be tapped.
+        OnlyTopAnswersTaps(_stock, _game.Status == SolitaireStatus.Playing && !_dealing);
 
         // Nothing is played while the board is in the air. A tap on the pile would
         // draw a card, and the refresh that followed would turn the board face up
         // around cards still in flight.
         if (_dealing)
-        {
             foreach (var view in _cardViews) view.Freeze();
-            _stockView.Freeze();
-        }
 
         if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
         if (_stockButton != null)
@@ -461,7 +643,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         _game.Changed -= Refresh;
 
         foreach (var view in _cardViews) view.Freeze();
-        if (_stockView != null) _stockView.Freeze();
+        foreach (var view in _stock) view.Freeze();
+        foreach (var view in _waste) view.Freeze();
         if (_stockButton != null) _stockButton.interactable = false;
 
         var won = _game.Status == SolitaireStatus.Won && _game.Score >= _targetScore;
@@ -516,8 +699,16 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void OnDestroy()
     {
-        // No SetLink in this build of DOTween, so the deal has to be put down by hand.
+        // No SetLink in this build of DOTween, so every tween has to be put down by
+        // hand: one still running against a card that has gone throws a frame later.
         StopDealing();
+
+        if (_cardViews != null)
+            foreach (var view in _cardViews)
+                if (view != null) DOTween.Kill(view.transform);
+
+        foreach (var view in _stock) if (view != null) DOTween.Kill(view.transform);
+        foreach (var view in _waste) if (view != null) DOTween.Kill(view.transform);
 
         if (_game != null)
         {

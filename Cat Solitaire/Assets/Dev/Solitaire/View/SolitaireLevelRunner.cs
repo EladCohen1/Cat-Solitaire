@@ -121,6 +121,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     readonly List<SolitaireCardView> _stock = new List<SolitaireCardView>();
     readonly List<SolitaireCardView> _waste = new List<SolitaireCardView>();
     bool[] _onBoard;
+    int _stockBuilt;
     int _targetScore;
     bool _roundOver;
     Sequence _deal;
@@ -408,7 +409,9 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         LayOutPile(_waste, WasteSlot);
         OnlyTopAnswersTaps(_waste, topAnswersTaps: false);
 
-        for (var i = 0; i < _game.StockRemaining; i++)
+        _stockBuilt = _game.StockRemaining;
+
+        for (var i = 0; i < _stockBuilt; i++)
         {
             var card = NewPileCard(StockRoot, $"Stock {i}");
             card.TurnNow(false);
@@ -417,7 +420,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         }
 
         LayOutPile(_stock, StockSlot);
-        OnlyTopAnswersTaps(_stock, topAnswersTaps: true);
+        OnlyFrontAnswersTaps(_stock, canBeTapped: true);
     }
 
     Transform WasteRoot => _wasteAnchor != null ? _wasteAnchor : _boardRoot;
@@ -454,6 +457,13 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             pile[i].AnswerTaps(topAnswersTaps && i == pile.Count - 1);
     }
 
+    /// <summary>The draw pile is taken from the front, so that is the card to tap.</summary>
+    void OnlyFrontAnswersTaps(List<SolitaireCardView> pile, bool canBeTapped)
+    {
+        for (var i = 0; i < pile.Count; i++)
+            pile[i].AnswerTaps(canBeTapped && i == 0);
+    }
+
     /// <summary>
     /// Where the card at this depth in a pile sits. The waste is capped, or a long
     /// round would walk it across the table; the draw pile is not, because its
@@ -471,7 +481,22 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     }
 
     Vector3 WasteSlot(int index) => PileSlot(index, _wasteFan, _wasteStackCap);
-    Vector3 StockSlot(int index) => PileSlot(index, _stockFan, 0);
+
+    /// <summary>
+    /// Where the card this far along the draw pile sits. Card 0 is on the holder and
+    /// is the one taken first, so it is also the one nearest the camera — the rest
+    /// run away behind it and are taken in turn. Hence the depth counting the other
+    /// way from the waste, where the last card to arrive is the one on top.
+    /// </summary>
+    Vector3 StockSlot(int alongThePile) =>
+        new Vector3(alongThePile * _stockFan.x, alongThePile * _stockFan.y, alongThePile * _pileDepth);
+
+    /// <summary>
+    /// How far along the pile the card at this place in the list sits. Cards are taken
+    /// off the front and put back on the front, and the ones behind never move, so
+    /// where a card sits is its distance from the front of the pile as first dealt.
+    /// </summary>
+    int AlongThePile(int indexInList) => _stockBuilt - _stock.Count + indexInList;
 
     /// <summary>
     /// Brings what is on screen back in line with what the rules say, moving whole
@@ -486,7 +511,9 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         // Drawn: the rules have fewer cards left in the pile than the pile is showing.
         while (_stock.Count > _game.StockRemaining)
         {
-            var drawn = TakeTop(_stock);
+            // Off the front: card 0 is the one on the holder and the one taken first.
+            var drawn = _stock[0];
+            _stock.RemoveAt(0);
 
             // Told what it is while still turned away: a card off the pile has never
             // been shown anything, so without this it turns over as whatever its
@@ -499,7 +526,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         // A draw taken back: the rules have more than the pile shows, so the card on
         // top of the waste goes back where it came from. The waste always keeps one.
         while (_stock.Count < _game.StockRemaining && _waste.Count > 1)
-            SendToStock(TakeTop(_waste));
+            SendBackToStock(TakeTop(_waste));
 
         for (var slot = 0; slot < _cardViews.Length; slot++)
         {
@@ -543,15 +570,17 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         FlyTo(card, WasteSlot(_waste.Count - 1));
     }
 
-    void SendToStock(SolitaireCardView card)
+    void SendBackToStock(SolitaireCardView card)
     {
         card.Freeze();
         card.TurnOver(false);
-        _stock.Add(card);
+
+        // Back on the front, which is where the rules will hand it out again from.
+        _stock.Insert(0, card);
 
         card.transform.SetParent(StockRoot, worldPositionStays: true);
 
-        FlyTo(card, StockSlot(_stock.Count - 1));
+        FlyTo(card, StockSlot(AlongThePile(0)));
     }
 
     void SendBackToBoard(int slot)
@@ -633,7 +662,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         // Neither pile is drawn here. Each is made of the cards themselves, already
         // showing their own faces, so the only thing to keep right is which card on
         // the draw pile can be tapped.
-        OnlyTopAnswersTaps(_stock, _game.Status == SolitaireStatus.Playing && !_dealing);
+        OnlyFrontAnswersTaps(_stock, _game.Status == SolitaireStatus.Playing && !_dealing);
 
         // Nothing is played while the board is in the air. A tap on the pile would
         // draw a card, and the refresh that followed would turn the board face up

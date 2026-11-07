@@ -236,11 +236,17 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     /// </summary>
     public void TurnOver(bool faceUp) => Turn(faceUp, _turnSeconds);
 
-    /// <summary>Stops the board answering taps once the round is decided.</summary>
-    public void Freeze()
+    /// <summary>
+    /// Whether this card answers taps. Says yes as well as no, because the top of the
+    /// draw pile has to come back to life after a deal has quietened the whole table.
+    /// </summary>
+    public void AnswerTaps(bool yes)
     {
-        if (_collider) _collider.enabled = false;
+        if (_collider) _collider.enabled = yes;
     }
+
+    /// <summary>Stops this card answering taps.</summary>
+    public void Freeze() => AnswerTaps(false);
 
     public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
 

@@ -389,8 +389,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     /// Layout coordinates are in card widths and heights. Rows nearer the bottom are
     /// also nearer the camera, which is what makes a peak look covered.
     /// </summary>
-    Vector3 PositionOf(Vector2 slot) =>
-        new Vector3(slot.x * _slotSpacing.x, slot.y * _slotSpacing.y, slot.y * _rowDepth);
+    Vector3 PositionOf(Vector2 slot) => new Vector3(slot.x * _slotSpacing.x, slot.y * _slotSpacing.y, slot.y * _rowDepth);
 
     void OnStockClicked(SolitaireCardView _) => Draw();
 

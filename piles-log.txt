@@ -1,0 +1,12 @@
+==============================================
+ real waste + stock piles  v9
+ started: Sat Nov  7 22:02:12 JST 2026
+==============================================
+writing     SolitaireCardView.cs
+
+########## STOPPED ##########
+file:     SolitaireLevelRunner.cs
+expected: 9754581b32cb9676ca8bf84586a733fe22d94710b01ac5c13f52836cbeb03abc
+found:    ec8e34cc4f3d57168ffb0bcfaf578161040422a114a01784631194aa2fc96757
+Your copy is not the one this was built on. Send piles-log.txt to Claude.
+#############################

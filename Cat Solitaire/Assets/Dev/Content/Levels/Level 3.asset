@@ -20,6 +20,8 @@ MonoBehaviour:
     Amount: 220
   - Currency: {fileID: 11400000, guid: 341d09f73b515084e9d0011417a7fbac, type: 2}
     Amount: 1
+  - Currency: {fileID: 11400000, guid: b5092de7bfd92aa408955202182b0665, type: 2}
+    Amount: 10
   LoseRewards: []
   RuleData: {fileID: 11400000, guid: cdb09d9a2efe46759d97913292f8966c, type: 2}
   Wagers: {fileID: 11400000, guid: 276e72defb6449f08b2a63cc7ec3ae7b, type: 2}

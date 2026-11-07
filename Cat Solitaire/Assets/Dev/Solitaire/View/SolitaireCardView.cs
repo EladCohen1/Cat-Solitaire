@@ -1,34 +1,8 @@
 using System;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-/// <summary>
-/// One card in the world: the card mesh with the atlas material on it. Picking a
-/// face is two floats on the shader.
-///
-/// Card.fbx is two mesh objects back to back, Card_Front and Card_Back, each with one
-/// material of its own — so the face lives on one renderer and the back on another.
-/// The front is found by material name rather than assumed, because a card built the
-/// other way (one mesh, two submeshes) is just as likely and the slot order is the
-/// mesh's business either way.
-///
-/// Only the front is ever written: the back art is whatever CardBack was authored
-/// with, and a face-down card is simply a card turned around. Writing a back cell
-/// into the front material would leave the real back side showing from behind and
-/// give the card two backs.
-///
-/// Each card gets its own copies of both materials. A MaterialPropertyBlock would be
-/// cheaper, but Shader Graph shaders under URP are SRP Batcher compatible, which
-/// keeps exposed properties in the per-material constant buffer and ignores block
-/// overrides entirely — every card would show whatever the shared material says.
-///
-/// It knows nothing about the rules — it is told what to show and it reports taps.
-/// Taps need a PhysicsRaycaster on the level camera and a 3D collider — a Collider2D
-/// is a different physics world and the raycaster will not see it.
-///
-/// An FBX drops in as a wrapper with the mesh on a child, so the renderer and the
-/// collider are looked for in children as well as here.
-/// </summary>
 public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 {
     [Tooltip("Leave empty to find the renderer carrying the card face by material name.")]
@@ -78,6 +52,12 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
              "Y for a card standing up to the camera.")]
     [SerializeField] Vector3 _faceDownRotation = new Vector3(0f, 180f, 0f);
 
+    [Tooltip("How long the card takes to turn over when the rules reveal it mid-round. " +
+             "0 turns it at once. The opening deal times its own turns separately.")]
+    [SerializeField] float _turnSeconds = 0.25f;
+
+    [SerializeField] Ease _turnEase = Ease.InOutCubic;
+
     [Header("Look")]
     [SerializeField] Color _faceTint = Color.white;
     [SerializeField] Color _playableTint = new Color(1f, 0.97f, 0.78f);
@@ -98,6 +78,10 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     Material[] _materials;   // our copies, ours to destroy
     Material _front;
     bool _hasBackSide;
+
+    Tweener _turn;
+    bool? _turningTo;   // the face a turn in flight is heading for
+    bool _dealt;        // the first turn is the deal, not a card being turned over
 
     void Reset() => FindParts();
 
@@ -124,13 +108,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         _front = _materials[Mathf.Clamp(_frontMaterialSlot, 0, _materials.Length - 1)];
     }
-
-    /// <summary>
-    /// Works out which renderer and slot hold the readable side of the card, and
-    /// whether there is a back side to turn to. Card.fbx keeps the two sides on
-    /// separate mesh objects, but a card built as one mesh with two submeshes is just
-    /// as valid, so both the renderers and their slots are searched by material name.
-    /// </summary>
+    
     void FindParts()
     {
         if (_collider == null) _collider = GetComponentInChildren<Collider>();
@@ -157,10 +135,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
             _frontMaterialSlot = slot;
             return;
         }
-
-        // No material said it was the face. Rather than write the rank onto whatever
-        // comes first — which may well be the back — take the renderer already wired,
-        // and failing that the first one with a mesh, and say so.
+        
         if (_frontRenderer == null) _frontRenderer = FirstDrawnRenderer(renderers);
         if (_frontMaterialSlot < 0) _frontMaterialSlot = 0;
 
@@ -185,11 +160,7 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         return -1;
     }
-
-    /// <summary>
-    /// Loose enough that Card_Front answers to CardFront, and that a copy named
-    /// "CardFront (Instance)" still answers to it.
-    /// </summary>
+    
     static bool NameMatches(string candidate, string wanted) =>
         !string.IsNullOrEmpty(candidate) &&
         Simplify(candidate).StartsWith(Simplify(wanted), StringComparison.OrdinalIgnoreCase);
@@ -219,11 +190,16 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         SetFaceUp(faceUp);
 
-        // Face down, the mesh's own back side is what the camera sees, so there is
-        // nothing to write. A mesh with only one material has no back side to turn
-        // to, so there the back cell is drawn on the only face it has.
-        if (faceUp) SetTile(TileOf(card));
-        else if (!_hasBackSide) SetTile(_backTile);
+        // The face is written whichever way the card is turned. It is on its own side
+        // of the mesh, so nobody can see it being set — and it has to be set now,
+        // because turning the card over is a rotation and asks nothing of this card:
+        // left until the next refresh, every card comes up showing whatever its
+        // material was last left with rather than the card it is.
+        //
+        // A mesh with no back side has only the one face, so there the back cell is
+        // what goes on it while the card is turned away.
+        if (_hasBackSide) SetTile(TileOf(card));
+        else SetTile(faceUp ? TileOf(card) : _backTile);
 
         // Only the face is tinted. The back keeps the look CardBack was authored with.
         SetTint(blocked ? _blockedTint : playable ? _playableTint : _faceTint);
@@ -232,27 +208,105 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         if (_collider != null) _collider.enabled = !blocked;
     }
 
-    public void Hide() => gameObject.SetActive(false);
-
-    /// <summary>Stops the board answering taps once the round is decided.</summary>
-    public void Freeze()
+    public void Hide()
     {
-        if (_collider != null) _collider.enabled = false;
+        StopTurning();
+
+        gameObject.SetActive(false);
     }
+
+    /// <summary>True when the mesh has a back to turn to, rather than one printed side.</summary>
+    public bool HasBackSide => _hasBackSide;
+
+    public void GoTo(Transform target, Sequence sequence)
+    {
+        
+    }
+
+    /// <summary>Where this card sits turned one way or the other.</summary>
+    public Quaternion TurnedTo(bool faceUp) => faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+
+    /// <summary>Turns the card at once, with no tween — for a deal to set it up.</summary>
+    public void TurnNow(bool faceUp) => Turn(faceUp, 0f);
+
+    /// <summary>
+    /// Turns the card over, taking its own time over it. A deal says when a card
+    /// turns; how long it takes is the card's business, so there is one place to
+    /// change it rather than one per animation that turns a card.
+    /// </summary>
+    public void TurnOver(bool faceUp) => Turn(faceUp, _turnSeconds);
+
+    /// <summary>
+    /// Whether this card answers taps. Says yes as well as no, because the top of the
+    /// draw pile has to come back to life after a deal has quietened the whole table.
+    /// </summary>
+    public void AnswerTaps(bool yes)
+    {
+        if (_collider) _collider.enabled = yes;
+    }
+
+    /// <summary>Stops this card answering taps.</summary>
+    public void Freeze() => AnswerTaps(false);
 
     public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
 
+    /// <summary>Turns the card over, over <see cref="_turnSeconds"/>.</summary>
+    void SetFaceUp(bool faceUp) => Turn(faceUp, _turnSeconds);
+
     /// <summary>
-    /// Turns the card over. Instant for now — a flip tween belongs here, which is why
-    /// the rotation lives in one place.
+    /// Turns the card to face one way or the other.
+    ///
+    /// Every move refreshes every card, and nearly all of them are already facing the
+    /// way they are being told to, so a turn only happens when one is actually needed.
+    /// Without that, a card would restart its turn on every move for the rest of the
+    /// round and never finish one.
     /// </summary>
-    void SetFaceUp(bool faceUp)
+    void Turn(bool faceUp, float seconds)
     {
         FaceUp = faceUp;
 
         if (!_hasBackSide) return;
 
-        transform.localRotation = faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+        // The first turn is the card being put down, not turned over, so it happens
+        // at once however long a turn is set to take — otherwise the whole board
+        // visibly flips itself face down the moment it is dealt.
+        if (!_dealt)
+        {
+            _dealt = true;
+            seconds = 0f;
+        }
+
+        if (_turningTo == faceUp) return;                           // already on its way
+        if (_turningTo == null && AlreadyFacing(faceUp)) return;    // already there
+
+        StopTurning();
+
+        if (seconds <= 0f)
+        {
+            transform.localRotation = TurnedTo(faceUp);
+            return;
+        }
+
+        _turningTo = faceUp;
+        _turn = transform
+            .DOLocalRotate(faceUp ? Vector3.zero : _faceDownRotation, seconds)
+            .SetEase(_turnEase)
+            .OnComplete(StopTurning);
+    }
+
+    /// <summary>
+    /// Read off the transform rather than a flag of our own, so a turn driven from
+    /// outside — a deal animating the cards itself — cannot leave the two disagreeing.
+    /// </summary>
+    bool AlreadyFacing(bool faceUp) =>
+        Quaternion.Angle(transform.localRotation, TurnedTo(faceUp)) < 0.5f;
+
+    void StopTurning()
+    {
+        if (_turn != null && _turn.IsActive()) _turn.Kill();
+
+        _turn = null;
+        _turningTo = null;
     }
 
     /// <summary>
@@ -293,6 +347,10 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     void OnDestroy()
     {
         Clicked = null;
+
+        // No SetLink in this build of DOTween, so a turn still running against a card
+        // that has gone is an exception a frame later unless it is put down here.
+        StopTurning();
 
         // The copies are ours, so they are ours to clean up.
         if (_materials == null) return;

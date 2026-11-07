@@ -199,6 +199,16 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
         gameObject.SetActive(false);
     }
 
+    /// <summary>True when the mesh has a back to turn to, rather than one printed side.</summary>
+    public bool HasBackSide => _hasBackSide;
+
+    /// <summary>Where this card sits turned one way or the other.</summary>
+    public Quaternion TurnedTo(bool faceUp) =>
+        faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+
+    /// <summary>Turns the card at once. An animation that drove the turn settles up with this.</summary>
+    public void TurnNow(bool faceUp) => SetFaceUp(faceUp);
+
     /// <summary>Stops the board answering taps once the round is decided.</summary>
     public void Freeze()
     {

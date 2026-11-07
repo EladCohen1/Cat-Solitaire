@@ -112,6 +112,29 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         if (_game != null) _game.TryDraw();
     }
 
+    /// <summary>The cards on the board, in slot order, for a deal to drive. Empty until it is built.</summary>
+    public IReadOnlyList<SolitaireCardView> Cards => _cardViews;
+
+    /// <summary>Where the draw pile sits, for a deal to fly cards in from.</summary>
+    public Transform StockAnchor => _stockAnchor;
+
+    /// <summary>The draw pile itself, for a deal to stop it being tapped mid-flight.</summary>
+    public SolitaireCardView StockView => _stockView;
+
+    /// <summary>True when nothing covers this slot, so its card is turned face up.</summary>
+    public bool IsRevealed(int slot) =>
+        _game != null && slot >= 0 && slot < _game.SlotCount &&
+        !_game.IsCleared(slot) && !_game.IsBlocked(slot);
+
+    /// <summary>
+    /// Puts the board back the way the rules say it is. An animation that moved or
+    /// turned the cards itself calls this to hand them back.
+    /// </summary>
+    public void RefreshBoard()
+    {
+        if (_game != null) Refresh();
+    }
+
     // ---- what the HUD reads -------------------------------------------------
 
     public bool CanUndo => _game != null && _game.CanUndo;

@@ -1,23 +1,23 @@
 ==============================================
- land on the waste, not under it  v13
- started: Sat Nov  7 22:31:06 JST 2026
+ draw from the front  v14
+ started: Sun Nov  8 00:02:43 JST 2026
 ==============================================
-recognised  SolitaireLevelRunner.cs (2fc5ea5 (remote))
-recognised  SolitaireLevelRunner.cs (9f1c8bf (same content))
+recognised  SolitaireLevelRunner.cs (b43094c (+ waste depth fix))
 writing     SolitaireLevelRunner.cs
 
  M "Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs"
+ M "Cat Solitaire/Assets/Scenes/Solitaire.unity"
  M piles-log.txt
-?? waste-depth-v13.sh
+?? stock-order-v14.sh
 
-[Liron fd91b23] Let a card land on the waste pile rather than under it
- 1 file changed, 6 insertions(+), 2 deletions(-)
+[Liron 4570974] Take the draw pile from the front, where the holder is
+ 2 files changed, 46 insertions(+), 13 deletions(-)
 
 branch 'Liron' set up to track 'origin/Liron'.
 To https://github.com/EladCohen1/Cat-Solitaire.git
-   2fc5ea5..fd91b23  Liron -> Liron
+   a5e7f2a..4570974  Liron -> Liron
 
-fd91b23 Let a card land on the waste pile rather than under it
-2fc5ea5 Make the piles out of real cards; a drawn card turns over
+4570974 Take the draw pile from the front, where the holder is
+a5e7f2a cards transition to waste
 
 Done.

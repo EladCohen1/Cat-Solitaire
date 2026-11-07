@@ -1,12 +1,23 @@
 ==============================================
- real waste + stock piles  v9
- started: Sat Nov  7 22:02:12 JST 2026
+ land on the waste, not under it  v13
+ started: Sat Nov  7 22:31:06 JST 2026
 ==============================================
-writing     SolitaireCardView.cs
+recognised  SolitaireLevelRunner.cs (2fc5ea5 (remote))
+recognised  SolitaireLevelRunner.cs (9f1c8bf (same content))
+writing     SolitaireLevelRunner.cs
 
-########## STOPPED ##########
-file:     SolitaireLevelRunner.cs
-expected: 9754581b32cb9676ca8bf84586a733fe22d94710b01ac5c13f52836cbeb03abc
-found:    ec8e34cc4f3d57168ffb0bcfaf578161040422a114a01784631194aa2fc96757
-Your copy is not the one this was built on. Send piles-log.txt to Claude.
-#############################
+ M "Cat Solitaire/Assets/Dev/Solitaire/View/SolitaireLevelRunner.cs"
+ M piles-log.txt
+?? waste-depth-v13.sh
+
+[Liron fd91b23] Let a card land on the waste pile rather than under it
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+branch 'Liron' set up to track 'origin/Liron'.
+To https://github.com/EladCohen1/Cat-Solitaire.git
+   2fc5ea5..fd91b23  Liron -> Liron
+
+fd91b23 Let a card land on the waste pile rather than under it
+2fc5ea5 Make the piles out of real cards; a drawn card turns over
+
+Done.

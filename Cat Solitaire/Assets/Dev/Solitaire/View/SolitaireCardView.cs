@@ -52,6 +52,12 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
              "Y for a card standing up to the camera.")]
     [SerializeField] Vector3 _faceDownRotation = new Vector3(0f, 180f, 0f);
 
+    [Tooltip("How long the card takes to turn over when the rules reveal it mid-round. " +
+             "0 turns it at once. The opening deal times its own turns separately.")]
+    [SerializeField] float _turnSeconds = 0.25f;
+
+    [SerializeField] Ease _turnEase = Ease.InOutCubic;
+
     [Header("Look")]
     [SerializeField] Color _faceTint = Color.white;
     [SerializeField] Color _playableTint = new Color(1f, 0.97f, 0.78f);
@@ -72,6 +78,10 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     Material[] _materials;   // our copies, ours to destroy
     Material _front;
     bool _hasBackSide;
+
+    Tweener _turn;
+    bool? _turningTo;   // the face a turn in flight is heading for
+    bool _dealt;        // the first turn is the deal, not a card being turned over
 
     void Reset() => FindParts();
 
@@ -195,7 +205,8 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
     public void Hide()
     {
-        
+        StopTurning();
+
         gameObject.SetActive(false);
     }
 
@@ -206,8 +217,8 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     public Quaternion TurnedTo(bool faceUp) =>
         faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
 
-    /// <summary>Turns the card at once. An animation that drove the turn settles up with this.</summary>
-    public void TurnNow(bool faceUp) => SetFaceUp(faceUp);
+    /// <summary>Turns the card at once, with no tween — for a deal to set it up.</summary>
+    public void TurnNow(bool faceUp) => Turn(faceUp, 0f);
 
     /// <summary>Stops the board answering taps once the round is decided.</summary>
     public void Freeze()
@@ -217,18 +228,63 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData) => Clicked?.Invoke(this);
 
+    /// <summary>Turns the card over, over <see cref="_turnSeconds"/>.</summary>
+    void SetFaceUp(bool faceUp) => Turn(faceUp, _turnSeconds);
+
     /// <summary>
-    /// Turns the card over. Instant for now — a flip tween belongs here, which is why
-    /// the rotation lives in one place.
+    /// Turns the card to face one way or the other.
+    ///
+    /// Every move refreshes every card, and nearly all of them are already facing the
+    /// way they are being told to, so a turn only happens when one is actually needed.
+    /// Without that, a card would restart its turn on every move for the rest of the
+    /// round and never finish one.
     /// </summary>
-    void SetFaceUp(bool faceUp)
+    void Turn(bool faceUp, float seconds)
     {
         FaceUp = faceUp;
 
         if (!_hasBackSide) return;
-        
-        transform.localRotation = faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
 
+        // The first turn is the card being put down, not turned over, so it happens
+        // at once however long a turn is set to take — otherwise the whole board
+        // visibly flips itself face down the moment it is dealt.
+        if (!_dealt)
+        {
+            _dealt = true;
+            seconds = 0f;
+        }
+
+        if (_turningTo == faceUp) return;                           // already on its way
+        if (_turningTo == null && AlreadyFacing(faceUp)) return;    // already there
+
+        StopTurning();
+
+        if (seconds <= 0f)
+        {
+            transform.localRotation = TurnedTo(faceUp);
+            return;
+        }
+
+        _turningTo = faceUp;
+        _turn = transform
+            .DOLocalRotate(faceUp ? Vector3.zero : _faceDownRotation, seconds)
+            .SetEase(_turnEase)
+            .OnComplete(StopTurning);
+    }
+
+    /// <summary>
+    /// Read off the transform rather than a flag of our own, so a turn driven from
+    /// outside — a deal animating the cards itself — cannot leave the two disagreeing.
+    /// </summary>
+    bool AlreadyFacing(bool faceUp) =>
+        Quaternion.Angle(transform.localRotation, TurnedTo(faceUp)) < 0.5f;
+
+    void StopTurning()
+    {
+        if (_turn != null && _turn.IsActive()) _turn.Kill();
+
+        _turn = null;
+        _turningTo = null;
     }
 
     /// <summary>
@@ -269,6 +325,10 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     void OnDestroy()
     {
         Clicked = null;
+
+        // No SetLink in this build of DOTween, so a turn still running against a card
+        // that has gone is an exception a frame later unless it is put down here.
+        StopTurning();
 
         // The copies are ours, so they are ours to clean up.
         if (_materials == null) return;

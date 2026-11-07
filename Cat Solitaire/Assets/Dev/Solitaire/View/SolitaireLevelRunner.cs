@@ -1,10 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using DG.Tweening;
 using TMPro;
-using UnityEditor.Graphs;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,7 +32,29 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     [SerializeField] Transform _boardRoot;
     [SerializeField] Transform _stockAnchor;
     [SerializeField] Transform _wasteAnchor;
+    [Tooltip("Where the cards are thrown from. Left empty, the board simply appears.")]
     [SerializeField] Transform _dealingPoint;
+
+    [Tooltip("How long one card takes to reach its place.")]
+    [SerializeField] float _dealSeconds = 0.4f;
+
+    [Tooltip("The gap between one card being thrown and the next. This is what makes it " +
+             "read as dealing rather than the board arriving at once.")]
+    [SerializeField] float _delayBetweenCards = 0.055f;
+
+    [Tooltip("How high a card lifts on its way over. 0 slides it flat across the table.")]
+    [SerializeField] float _dealArc = 0.5f;
+
+    [SerializeField] Ease _dealEase = Ease.OutQuad;
+
+    [Tooltip("Cards leave the hand this much smaller and grow as they fly. 1 keeps them full size.")]
+    [SerializeField] float _dealtFromScale = 0.85f;
+
+    [Tooltip("A beat after the last card lands, before the uncovered ones turn over.")]
+    [SerializeField] float _pauseBeforeTurning = 0.15f;
+
+    [Tooltip("The gap between one card turning over and the next.")]
+    [SerializeField] float _delayBetweenTurns = 0.05f;
 
     [Tooltip("World distance between neighbouring slots, across and down the layout.")]
     [SerializeField] Vector2 _slotSpacing = new Vector2(1.1f, 1.5f);
@@ -77,6 +97,8 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     SolitaireCardView _stockView;
     int _targetScore;
     bool _roundOver;
+    Sequence _deal;
+    bool _dealing;
 
     private IReadOnlyList<SolitaireBoardLayout.Slot> slots;
     private Vector2 center;
@@ -251,8 +273,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             var view = Instantiate(_cardPrefab, _boardRoot);
             view.name = $"Card {i}";
             view.Bind(i);
-            view.transform.position = _dealingPoint.position;
-            //view.transform.localPosition = PositionOf(slots[i].Position - center);
+            view.transform.localPosition = PositionOf(slots[i].Position - center);
             view.Clicked += OnCardClicked;
 
             _cardViews[i] = view;
@@ -261,15 +282,91 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         PlacingCards();
     }
 
+    /// <summary>
+    /// Deals the board: each card is thrown from the dealing point to its place, a
+    /// beat after the one before, and the ones nothing covers turn over once they
+    /// have all landed.
+    ///
+    /// The cards are already sitting where they belong when this runs — it takes them
+    /// back to the hand and throws them in. That way the layout stays the one thing
+    /// that decides where a card goes, and a board with no dealing point set simply
+    /// appears, exactly as it did before.
+    /// </summary>
     void PlacingCards()
     {
-        
-        for (int i = 0; i < _cardViews.Length; i++)
+        StopDealing();
+
+        if (_dealingPoint == null || _dealSeconds <= 0f) return;
+
+        _dealing = true;
+
+        var from = (_boardRoot != null ? _boardRoot : transform).InverseTransformPoint(_dealingPoint.position);
+        var scaled = !Mathf.Approximately(_dealtFromScale, 1f);
+        var places = new Vector3[_cardViews.Length];
+
+        for (var i = 0; i < _cardViews.Length; i++)
         {
-            var view = _cardViews[i];
-            Vector3 pos = PositionOf(slots[i].Position - center);
-            view.transform.DOLocalMove(pos, 0.5f);
+            var card = _cardViews[i];
+            places[i] = card.transform.localPosition;
+
+            // Face down and deaf to taps, back in the hand. This has to happen before
+            // the tweens are built: DOTween reads where a tween starts from as it is
+            // built, not when it comes round to playing it.
+            card.TurnNow(false);
+            card.Freeze();
+            card.transform.localPosition = from;
+            if (scaled) card.transform.localScale = Vector3.one * _dealtFromScale;
         }
+
+        _deal = DOTween.Sequence();
+
+        for (var i = 0; i < _cardViews.Length; i++)
+        {
+            var at = i * _delayBetweenCards;
+            var card = _cardViews[i].transform;
+
+            // A jump returns a Sequence and a move a Tweener, so they meet as Tween.
+            Tween flight = _dealArc > 0f
+                ? card.DOLocalJump(places[i], _dealArc, 1, _dealSeconds).SetEase(_dealEase)
+                : (Tween)card.DOLocalMove(places[i], _dealSeconds).SetEase(_dealEase);
+
+            _deal.Insert(at, flight);
+
+            if (scaled) _deal.Insert(at, card.DOScale(Vector3.one, _dealSeconds).SetEase(_dealEase));
+        }
+
+        // The last card is thrown last, so the board is down one flight after that.
+        var allLanded = (_cardViews.Length - 1) * _delayBetweenCards + _dealSeconds;
+        var turnAt = allLanded + _pauseBeforeTurning;
+        var turned = 0;
+
+        for (var i = 0; i < _cardViews.Length; i++)
+        {
+            if (_game.IsBlocked(i)) continue;
+
+            var card = _cardViews[i];
+            _deal.InsertCallback(turnAt + turned * _delayBetweenTurns, () => card.TurnOver(true));
+            turned++;
+        }
+
+        _deal.OnComplete(FinishDealing);
+    }
+
+    void FinishDealing()
+    {
+        _deal = null;
+        _dealing = false;
+
+        // Hands the board back to the rules: what is face up, and what answers taps.
+        Refresh();
+    }
+
+    void StopDealing()
+    {
+        if (_deal != null && _deal.IsActive()) _deal.Kill();
+
+        _deal = null;
+        _dealing = false;
     }
 
     void BuildPiles()
@@ -318,7 +415,13 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             // last card lying on it is taken, which is the same test that decides
             // whether it can be played at all.
             var blocked = _game.IsBlocked(i);
-            _cardViews[i].Show(_game.CardAt(i), faceUp: !blocked, playable: _game.IsPlayable(i), blocked: blocked);
+
+            // Mid-deal the cards are still in the air, face down and not to be played.
+            // The deal turns them over as they land and then asks for this again.
+            _cardViews[i].Show(_game.CardAt(i),
+                               faceUp: !blocked && !_dealing,
+                               playable: _game.IsPlayable(i),
+                               blocked: blocked || _dealing);
         }
 
         _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
@@ -329,6 +432,10 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             _stockView.Show(_game.Active, faceUp: false, playable: false, blocked: false);
         else
             _stockView.Hide();
+
+        // A tap on the pile mid-deal would draw a card, and the refresh that followed
+        // would turn the board face up around cards still in the air.
+        if (_dealing) _stockView.Freeze();
 
         if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
         if (_stockButton != null)
@@ -403,6 +510,9 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     void OnDestroy()
     {
+        // No SetLink in this build of DOTween, so the deal has to be put down by hand.
+        StopDealing();
+
         if (_game != null)
         {
             _game.Changed -= Refresh;

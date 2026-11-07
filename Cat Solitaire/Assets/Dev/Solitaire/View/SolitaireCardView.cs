@@ -224,6 +224,13 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     /// <summary>Turns the card at once, with no tween — for a deal to set it up.</summary>
     public void TurnNow(bool faceUp) => Turn(faceUp, 0f);
 
+    /// <summary>
+    /// Turns the card over, taking its own time over it. A deal says when a card
+    /// turns; how long it takes is the card's business, so there is one place to
+    /// change it rather than one per animation that turns a card.
+    /// </summary>
+    public void TurnOver(bool faceUp) => Turn(faceUp, _turnSeconds);
+
     /// <summary>Stops the board answering taps once the round is decided.</summary>
     public void Freeze()
     {

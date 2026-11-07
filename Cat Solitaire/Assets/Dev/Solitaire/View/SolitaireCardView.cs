@@ -190,11 +190,16 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         SetFaceUp(faceUp);
 
-        // Face down, the mesh's own back side is what the camera sees, so there is
-        // nothing to write. A mesh with only one material has no back side to turn
-        // to, so there the back cell is drawn on the only face it has.
-        if (faceUp) SetTile(TileOf(card));
-        else if (!_hasBackSide) SetTile(_backTile);
+        // The face is written whichever way the card is turned. It is on its own side
+        // of the mesh, so nobody can see it being set — and it has to be set now,
+        // because turning the card over is a rotation and asks nothing of this card:
+        // left until the next refresh, every card comes up showing whatever its
+        // material was last left with rather than the card it is.
+        //
+        // A mesh with no back side has only the one face, so there the back cell is
+        // what goes on it while the card is turned away.
+        if (_hasBackSide) SetTile(TileOf(card));
+        else SetTile(faceUp ? TileOf(card) : _backTile);
 
         // Only the face is tinted. The back keeps the look CardBack was authored with.
         SetTint(blocked ? _blockedTint : playable ? _playableTint : _faceTint);

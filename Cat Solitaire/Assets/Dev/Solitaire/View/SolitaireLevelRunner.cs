@@ -416,12 +416,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             // whether it can be played at all.
             var blocked = _game.IsBlocked(i);
 
-            // Mid-deal the cards are still in the air, face down and not to be played.
-            // The deal turns them over as they land and then asks for this again.
+            // Mid-deal the cards are still in the air and face down. They are told
+            // what they really are all the same, so that each comes up showing its
+            // own face and its own colour; what stops them being played is the
+            // freeze below, not a pretend blocking that would also grey them.
             _cardViews[i].Show(_game.CardAt(i),
                                faceUp: !blocked && !_dealing,
                                playable: _game.IsPlayable(i),
-                               blocked: blocked || _dealing);
+                               blocked: blocked);
         }
 
         _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
@@ -433,9 +435,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         else
             _stockView.Hide();
 
-        // A tap on the pile mid-deal would draw a card, and the refresh that followed
-        // would turn the board face up around cards still in the air.
-        if (_dealing) _stockView.Freeze();
+        // Nothing is played while the board is in the air. A tap on the pile would
+        // draw a card, and the refresh that followed would turn the board face up
+        // around cards still in flight.
+        if (_dealing)
+        {
+            foreach (var view in _cardViews) view.Freeze();
+            _stockView.Freeze();
+        }
 
         if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
         if (_stockButton != null)

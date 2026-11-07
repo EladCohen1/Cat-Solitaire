@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 echo "=============================================="
-echo " dealing cards  v5"
+echo " dealing + card face  v6"
 echo "=============================================="
 cd "$(dirname "$0")"
 if [ ! -d .git ]; then echo "ERROR: put this in the repository root (the folder with .git)"; exit 1; fi
@@ -226,11 +226,16 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
 
         SetFaceUp(faceUp);
 
-        // Face down, the mesh's own back side is what the camera sees, so there is
-        // nothing to write. A mesh with only one material has no back side to turn
-        // to, so there the back cell is drawn on the only face it has.
-        if (faceUp) SetTile(TileOf(card));
-        else if (!_hasBackSide) SetTile(_backTile);
+        // The face is written whichever way the card is turned. It is on its own side
+        // of the mesh, so nobody can see it being set — and it has to be set now,
+        // because turning the card over is a rotation and asks nothing of this card:
+        // left until the next refresh, every card comes up showing whatever its
+        // material was last left with rather than the card it is.
+        //
+        // A mesh with no back side has only the one face, so there the back cell is
+        // what goes on it while the card is turned away.
+        if (_hasBackSide) SetTile(TileOf(card));
+        else SetTile(faceUp ? TileOf(card) : _backTile);
 
         // Only the face is tinted. The back keeps the look CardBack was authored with.
         SetTint(blocked ? _blockedTint : playable ? _playableTint : _faceTint);
@@ -806,12 +811,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
             // whether it can be played at all.
             var blocked = _game.IsBlocked(i);
 
-            // Mid-deal the cards are still in the air, face down and not to be played.
-            // The deal turns them over as they land and then asks for this again.
+            // Mid-deal the cards are still in the air and face down. They are told
+            // what they really are all the same, so that each comes up showing its
+            // own face and its own colour; what stops them being played is the
+            // freeze below, not a pretend blocking that would also grey them.
             _cardViews[i].Show(_game.CardAt(i),
                                faceUp: !blocked && !_dealing,
                                playable: _game.IsPlayable(i),
-                               blocked: blocked || _dealing);
+                               blocked: blocked);
         }
 
         _wasteView.Show(_game.Active, faceUp: true, playable: false, blocked: false);
@@ -823,9 +830,14 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         else
             _stockView.Hide();
 
-        // A tap on the pile mid-deal would draw a card, and the refresh that followed
-        // would turn the board face up around cards still in the air.
-        if (_dealing) _stockView.Freeze();
+        // Nothing is played while the board is in the air. A tap on the pile would
+        // draw a card, and the refresh that followed would turn the board face up
+        // around cards still in flight.
+        if (_dealing)
+        {
+            foreach (var view in _cardViews) view.Freeze();
+            _stockView.Freeze();
+        }
 
         if (_stockCountLabel != null) _stockCountLabel.text = _game.StockRemaining.ToString();
         if (_stockButton != null)
@@ -917,9 +929,9 @@ if [ -f "$DIR/SolitaireDealAnimation.cs" ]; then rm "$DIR/SolitaireDealAnimation
 if [ -f "$DIR/SolitaireDealAnimation.cs.meta" ]; then rm "$DIR/SolitaireDealAnimation.cs.meta"; echo "removed  SolitaireDealAnimation.cs.meta"; fi
 
 echo; echo "=============================================="
-echo " SUCCESS - 2 written, 2 removed"
+echo " SUCCESS"
 echo "=============================================="
-echo "  rm dealing-cards-v5.sh"
+echo "  rm deal-face-v6.sh"
 echo "  git add -A"
-echo "  git commit -m \"Throw the cards in one at a time\""
+echo "  git commit -m \"Deal the cards one at a time, with their own faces\""
 echo "  git push -u origin Liron"

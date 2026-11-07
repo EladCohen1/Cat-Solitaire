@@ -213,9 +213,13 @@ public class SolitaireCardView : MonoBehaviour, IPointerClickHandler
     /// <summary>True when the mesh has a back to turn to, rather than one printed side.</summary>
     public bool HasBackSide => _hasBackSide;
 
+    public void GoTo(Transform target, Sequence sequence)
+    {
+        
+    }
+
     /// <summary>Where this card sits turned one way or the other.</summary>
-    public Quaternion TurnedTo(bool faceUp) =>
-        faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
+    public Quaternion TurnedTo(bool faceUp) => faceUp ? Quaternion.identity : Quaternion.Euler(_faceDownRotation);
 
     /// <summary>Turns the card at once, with no tween — for a deal to set it up.</summary>
     public void TurnNow(bool faceUp) => Turn(faceUp, 0f);

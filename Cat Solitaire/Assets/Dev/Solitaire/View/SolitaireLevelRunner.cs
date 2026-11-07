@@ -1,7 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using DG.Tweening;
 using TMPro;
+using UnityEditor.Graphs;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -31,6 +34,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     [SerializeField] Transform _boardRoot;
     [SerializeField] Transform _stockAnchor;
     [SerializeField] Transform _wasteAnchor;
+    [SerializeField] Transform _dealingPoint;
 
     [Tooltip("World distance between neighbouring slots, across and down the layout.")]
     [SerializeField] Vector2 _slotSpacing = new Vector2(1.1f, 1.5f);
@@ -63,7 +67,7 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
 
     /// <summary>Raised when a run pays out, for the bonus to be shown landing.</summary>
     public event Action StreakPaid;
-
+    
     Action<LevelResult> _onComplete;
     ILevelPurse _purse;
     SolitaireGame _game;
@@ -73,6 +77,9 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     SolitaireCardView _stockView;
     int _targetScore;
     bool _roundOver;
+
+    private IReadOnlyList<SolitaireBoardLayout.Slot> slots;
+    private Vector2 center;
 
     public void Run(LevelDef def, ILevelPurse purse, Action<LevelResult> onComplete)
     {
@@ -234,20 +241,34 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
         if (_cardPrefab == null) throw new InvalidOperationException($"{name}: no card prefab assigned.");
         if (_boardRoot == null) _boardRoot = transform;
 
-        var slots = layout.EffectiveSlots;
-        var center = LayoutCenter(slots);
+        slots = layout.EffectiveSlots;
+        center = LayoutCenter(slots);
 
         _cardViews = new SolitaireCardView[slots.Count];
-
+        
         for (var i = 0; i < slots.Count; i++)
         {
             var view = Instantiate(_cardPrefab, _boardRoot);
             view.name = $"Card {i}";
             view.Bind(i);
-            view.transform.localPosition = PositionOf(slots[i].Position - center);
+            view.transform.position = _dealingPoint.position;
+            //view.transform.localPosition = PositionOf(slots[i].Position - center);
             view.Clicked += OnCardClicked;
 
             _cardViews[i] = view;
+        }
+
+        PlacingCards();
+    }
+
+    void PlacingCards()
+    {
+        
+        for (int i = 0; i < _cardViews.Length; i++)
+        {
+            var view = _cardViews[i];
+            Vector3 pos = PositionOf(slots[i].Position - center);
+            view.transform.DOLocalMove(pos, 0.5f);
         }
     }
 

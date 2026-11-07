@@ -461,9 +461,13 @@ public class SolitaireLevelRunner : MonoBehaviour, ILevelRunner
     /// </summary>
     Vector3 PileSlot(int index, Vector2 fan, int cap)
     {
-        if (cap > 0) index = Mathf.Min(index, cap);
+        // The cap flattens the fan, never the depth. Capping the depth too would give
+        // every card past it the same distance from the camera, and which of two cards
+        // at the same distance is drawn in front is anyone's guess — so a card landing
+        // on the waste would sometimes slide under the pile instead of onto it.
+        var fanned = cap > 0 ? Mathf.Min(index, cap) : index;
 
-        return new Vector3(index * fan.x, index * fan.y, -index * _pileDepth);
+        return new Vector3(fanned * fan.x, fanned * fan.y, -index * _pileDepth);
     }
 
     Vector3 WasteSlot(int index) => PileSlot(index, _wasteFan, _wasteStackCap);
